@@ -15,8 +15,6 @@
     <depends>com.intellij.properties</depends>
     <depends>com.intellij.java</depends>
 
-    <resource-bundle>messages.MyMessageBundle</resource-bundle>
-
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
@@ -33,4 +31,15 @@
 
     </extensions>
 
+    <actions>
+
+        <action
+                id="CFML.NewFile"
+                class="com.quetwo.intellilucee.actions.CFMLFileCreateActions"
+                text="CFML File"
+                description="Create a ColdFusion file">
+            <add-to-group group-id="NewGroup" anchor="last" />
+        </action>
+
+    </actions>
 </idea-plugin>
