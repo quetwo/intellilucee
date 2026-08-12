@@ -20,8 +20,17 @@
     <!-- Extensions defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow id="MyToolWindow" factoryClass="com.quetwo.MyToolWindowFactory"
-                    icon="AllIcons.Toolwindows.ToolWindowPalette"/>
+
+        <fileType
+                name="CFML"
+                language="CFML"
+                extensions="cfml;cfc;cfm;cfs"
+                implementationClass="com.quetwo.intellilucee.file.CFMLFileType" />
+
+        <lang.commenter
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.CFMLCommenter" />
+
     </extensions>
 
 </idea-plugin>
