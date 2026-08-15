@@ -22,12 +22,15 @@
         <fileType
                 name="CFML"
                 language="CFML"
+                fieldName="INSTANCE"
                 extensions="cfml;cfc;cfm;cfs"
                 implementationClass="com.quetwo.intellilucee.file.CFMLFileType" />
 
         <lang.commenter
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.CFMLCommenter" />
+
+        <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
     </extensions>
 
