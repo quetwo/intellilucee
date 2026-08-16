@@ -4,24 +4,46 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
+import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.extensions.PluginId
 import org.eclipse.lsp4j.ClientCapabilities
+import java.nio.file.Path
 
 class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor(project, "CFML")
 {
+    companion object
+    {
+        private val SUPPORTED_EXTENSIONS = setOf("cfm", "cfc", "cfs", "cfml")
+
+        fun isSupportedExtension(extension: String?): Boolean
+        {
+            return extension?.lowercase() in SUPPORTED_EXTENSIONS
+        }
+
+        private fun resolveLspExecutablePath(): Path
+        {
+            val pluginPath = PluginManagerCore.getPlugin(PluginId.getId("com.quetwo.IntelliLucee"))?.pluginPath
+                ?: error("Unable to resolve IntelliLucee plugin path")
+
+            return pluginPath.resolve("lsp").resolve("cfmleditor-lsp.exe")
+        }
+    }
+
     override fun isSupportedFile(file: VirtualFile): Boolean
     {
-        return (file.extension == "cfm") || (file.extension == "cfc") || (file.extension == "cfs") || (file.extension == "cfml")
+        return isSupportedExtension(file.extension)
     }
 
     override fun createCommandLine(): GeneralCommandLine
     {
-        val gc:GeneralCommandLine = GeneralCommandLine("d:\\luceedev\\cfmleditor-lsp.exe");
-        //gc.setWorkDirectory()
-        return gc;
+        //return GeneralCommandLine(resolveLspExecutablePath().toString())
+        return GeneralCommandLine("d:\\luceedev\\cfmleditor-lsp.exe");
     }
 
     override val clientCapabilities: ClientCapabilities
         get() = super.clientCapabilities.apply{
-            textDocument.diagnostic = null
+            //textDocument.diagnostic = null
         }
+
+
 }

@@ -8,7 +8,7 @@ internal class CFMLLspIntegrationProvider : LspIntegrationProvider
 {
     override fun fileOpened(project: Project, file: VirtualFile, clientStarter: LspIntegrationProvider.LspClientStarter)
     {
-        if (file.extension == "cfm")
+        if (CFMLLspClientDescriptor.isSupportedExtension(file.extension))
         {
             clientStarter.ensureClientStarted(CFMLLspClientDescriptor(project))
         }

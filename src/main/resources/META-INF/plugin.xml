@@ -30,6 +30,10 @@
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.CFMLCommenter" />
 
+        <lang.parserDefinition
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.parser.CFMLParserDefinition" />
+
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
     </extensions>
