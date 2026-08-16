@@ -6,7 +6,7 @@ import javax.swing.Icon;
 
 public final class CFMLIcon
 {
-    public static final Icon FILE = IconLoader.getIcon("/icons/img.png", CFMLIcon.class);
+    public static final Icon FILE = IconLoader.getIcon("/icons/CFMLFileIcon.svg", CFMLIcon.class);
 
     private  CFMLIcon()
     {

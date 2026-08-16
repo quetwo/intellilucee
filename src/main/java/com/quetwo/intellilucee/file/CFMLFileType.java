@@ -3,10 +3,11 @@ package com.quetwo.intellilucee.file;
 import com.intellij.openapi.fileTypes.LanguageFileType;
 import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.NlsSafe;
+import com.quetwo.intellilucee.CFMLIcon;
 import com.quetwo.intellilucee.CFMLLanguage;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import javax.swing.*;
 
@@ -34,13 +35,12 @@ public final class CFMLFileType extends LanguageFileType
     @Override
     public @NlsSafe @NotNull String getDefaultExtension()
     {
-        return "cfml";
+        return "cfm";
     }
 
     @Override
-    public @Nullable Icon getIcon()
+    public @NonNull Icon getIcon()
     {
-        //TODO:Implement ICON
-        return null;
+        return CFMLIcon.FILE;
     }
 }

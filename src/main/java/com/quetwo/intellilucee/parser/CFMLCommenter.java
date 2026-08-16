@@ -1,4 +1,4 @@
-package com.quetwo.intellilucee;
+package com.quetwo.intellilucee.parser;
 
 import com.intellij.lang.Commenter;
 import org.jetbrains.annotations.NotNull;

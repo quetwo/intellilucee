@@ -28,11 +28,15 @@
 
         <lang.commenter
                 language="CFML"
-                implementationClass="com.quetwo.intellilucee.CFMLCommenter" />
+                implementationClass="com.quetwo.intellilucee.parser.CFMLCommenter" />
 
         <lang.parserDefinition
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.parser.CFMLParserDefinition" />
+
+        <lang.syntaxHighlighterFactory
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.syntax.CFMLSyntaxHighlighterFactory" />
 
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 

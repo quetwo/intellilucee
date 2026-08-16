@@ -27,7 +27,7 @@
 
         <lang.commenter
                 language="CFML"
-                implementationClass="com.quetwo.intellilucee.CFMLCommenter" />
+                implementationClass="com.quetwo.intellilucee.parser.CFMLCommenter" />
 
     </extensions>
 

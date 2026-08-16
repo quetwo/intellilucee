@@ -2,3 +2,7 @@
 .idea
 .intellijPlatform
 build
+/out/
+.kotlin/
+gradlew
+gradlew.bat

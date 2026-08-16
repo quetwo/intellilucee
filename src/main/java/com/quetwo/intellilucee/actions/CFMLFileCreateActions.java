@@ -13,7 +13,6 @@ import org.jetbrains.annotations.NotNull;
 public final class CFMLFileCreateActions extends CreateFileFromTemplateAction implements DumbAware
 {
 
-
     private static final @NonNls
     @NotNull String CLASS_TEMPLATE_TAG_NAME = "CFML Class (tag)";
     private static final @NonNls

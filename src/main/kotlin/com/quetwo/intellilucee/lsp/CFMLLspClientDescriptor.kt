@@ -1,5 +1,6 @@
 package com.quetwo.intellilucee.lsp
 
+import com.esotericsoftware.kryo.kryo5.minlog.Log
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -24,8 +25,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
         {
             val pluginPath = PluginManagerCore.getPlugin(PluginId.getId("com.quetwo.IntelliLucee"))?.pluginPath
                 ?: error("Unable to resolve IntelliLucee plugin path")
-
-            return pluginPath.resolve("lsp").resolve("cfmleditor-lsp.exe")
+            return pluginPath.resolve("/lsp/cfmleditor-lsp.exe")
         }
     }
 
@@ -37,7 +37,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
     override fun createCommandLine(): GeneralCommandLine
     {
         //return GeneralCommandLine(resolveLspExecutablePath().toString())
-        return GeneralCommandLine("d:\\luceedev\\cfmleditor-lsp.exe");
+        return GeneralCommandLine("d:\\luceedev\\cfmleditor-lsp.exe")
     }
 
     override val clientCapabilities: ClientCapabilities

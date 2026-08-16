@@ -12,11 +12,14 @@ import com.intellij.psi.TokenType;
 import com.intellij.psi.impl.source.tree.LeafPsiElement;
 import com.intellij.psi.tree.IFileElementType;
 import com.intellij.psi.tree.TokenSet;
+import com.quetwo.intellilucee.lexer.CFMLSimpleLexer;
+import com.quetwo.intellilucee.lexer.CFMLTokenTypes;
 import org.jetbrains.annotations.NotNull;
 
 public final class CFMLParserDefinition implements ParserDefinition
 {
     private static final TokenSet WHITE_SPACES = TokenSet.create(TokenType.WHITE_SPACE);
+    private static final TokenSet COMMENTS = TokenSet.create(CFMLTokenTypes.COMMENT);
 
     @Override
     public @NotNull Lexer createLexer(Project project)
@@ -39,7 +42,7 @@ public final class CFMLParserDefinition implements ParserDefinition
     @Override
     public @NotNull TokenSet getCommentTokens()
     {
-        return TokenSet.EMPTY;
+        return COMMENTS;
     }
 
     @Override
