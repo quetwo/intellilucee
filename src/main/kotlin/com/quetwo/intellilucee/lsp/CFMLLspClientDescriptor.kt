@@ -1,17 +1,19 @@
 package com.quetwo.intellilucee.lsp
 
-import com.esotericsoftware.kryo.kryo5.minlog.Log
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.extensions.PluginId
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
-import com.intellij.ide.plugins.PluginManagerCore
-import com.intellij.openapi.extensions.PluginId
 import org.eclipse.lsp4j.ClientCapabilities
 import java.nio.file.Path
 
 class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor(project, "CFML")
 {
+    private val LOG: Logger? = Logger.getInstance(CFMLLspClientDescriptor::class.java)
+
     companion object
     {
         private val SUPPORTED_EXTENSIONS = setOf("cfm", "cfc", "cfs", "cfml")
@@ -25,7 +27,9 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
         {
             val pluginPath = PluginManagerCore.getPlugin(PluginId.getId("com.quetwo.IntelliLucee"))?.pluginPath
                 ?: error("Unable to resolve IntelliLucee plugin path")
-            return pluginPath.resolve("/lsp/cfmleditor-lsp.exe")
+            val lspEXE = pluginPath.resolve("lsp\\cfmleditor-lsp.exe")
+            LOG.info("plugin path detected as: ${lspEXE.toString()}")
+            return lspEXE
         }
     }
 
@@ -36,8 +40,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
 
     override fun createCommandLine(): GeneralCommandLine
     {
-        //return GeneralCommandLine(resolveLspExecutablePath().toString())
-        return GeneralCommandLine("d:\\luceedev\\cfmleditor-lsp.exe")
+        return GeneralCommandLine(resolveLspExecutablePath().toString())
     }
 
     override val clientCapabilities: ClientCapabilities

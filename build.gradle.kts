@@ -22,3 +22,15 @@ dependencies {
         bundledPlugin("com.intellij.properties")
     }
 }
+
+tasks {
+    processResources {
+        exclude("lsp/cfmleditor-lsp.exe")
+    }
+
+    prepareSandbox {
+        from("src/main/resources/lsp/cfmleditor-lsp.exe") {
+            into("${project.name}/lsp")
+        }
+    }
+}
