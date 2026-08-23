@@ -31,10 +31,6 @@ git push -u origin main
 
 This repository implements an IntelliJ Platform plugin.
 
-## Demo Functionality
-
-The sample plugin adds a `My Tool Window` tool window with a simple functionality of shuffling a random number.
-
 ## Plugin structure
 
 A generated project contains the following content structure:

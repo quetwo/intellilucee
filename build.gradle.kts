@@ -10,7 +10,6 @@ plugins {
 dependencies {
     testImplementation(libs.junit)
 
-    // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
         intellijIdea("2026.2.1")
         testFramework(TestFrameworkType.Platform)
@@ -20,17 +19,31 @@ dependencies {
         bundledPlugin("JavaScript")
         bundledPlugin("com.intellij.modules.json")
         bundledPlugin("com.intellij.properties")
+        bundledPlugin("org.jetbrains.plugins.textmate")
     }
 }
 
 tasks {
     processResources {
         exclude("lsp/cfmleditor-lsp.exe")
+        exclude("grammar/*.json")
     }
 
     prepareSandbox {
         from("src/main/resources/lsp/cfmleditor-lsp.exe") {
             into("${project.name}/lsp")
+        }
+        from("src/main/resources/grammar/cfml.tmLanguage.json") {
+            into("${project.name}/grammar")
+        }
+        from("src/main/resources/grammar/cfml-cfs.tmLanguage.json") {
+            into("${project.name}/grammar")
+        }
+        from("src/main/resources/grammar/language-configuration.json") {
+            into("${project.name}/grammar")
+        }
+        from("src/main/resources/grammar/package.json") {
+            into("${project.name}/grammar")
         }
     }
 }

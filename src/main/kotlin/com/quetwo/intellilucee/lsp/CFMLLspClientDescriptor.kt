@@ -27,7 +27,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
             val pluginPath = PluginManagerCore.getPlugin(PluginId.getId("com.quetwo.IntelliLucee"))?.pluginPath
                 ?: error("Unable to resolve IntelliLucee plugin path")
             val lspEXE = pluginPath.resolve("lsp\\cfmleditor-lsp.exe")
-            LOG.warn("plugin path detected as: ${lspEXE.toString()}")
+            LOG.info("Resolved LSP Location as : ${lspEXE.toString()}")
             return lspEXE
         }
     }
