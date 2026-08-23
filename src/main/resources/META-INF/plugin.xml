@@ -15,8 +15,6 @@
     <depends>com.intellij.properties</depends>
     <depends>com.intellij.java</depends>
 
-    <!-- Extensions defined by the plugin.
-         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
 
         <fileType
@@ -25,18 +23,6 @@
                 fieldName="INSTANCE"
                 extensions="cfml;cfc;cfm;cfs"
                 implementationClass="com.quetwo.intellilucee.file.CFMLFileType" />
-
-        <lang.commenter
-                language="CFML"
-                implementationClass="com.quetwo.intellilucee.parser.CFMLCommenter" />
-
-        <lang.parserDefinition
-                language="CFML"
-                implementationClass="com.quetwo.intellilucee.parser.CFMLParserDefinition" />
-
-        <lang.syntaxHighlighterFactory
-                language="CFML"
-                implementationClass="com.quetwo.intellilucee.syntax.CFMLSyntaxHighlighterFactory" />
 
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
