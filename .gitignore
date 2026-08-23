@@ -6,3 +6,4 @@ build
 .kotlin/
 gradlew
 gradlew.bat
+out/
