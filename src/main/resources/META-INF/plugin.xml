@@ -38,6 +38,11 @@
                 language="CFML"
                 implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateSyntaxHighlighterFactory"/>
 
+        <!-- Commenter to enable comments within the IDE -->
+        <lang.commenter
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLCommenter"/>
+
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
     </extensions>
