@@ -25,14 +25,10 @@ dependencies {
 
 tasks {
     processResources {
-        exclude("lsp/cfmleditor-lsp.exe")
         exclude("grammar/*.json")
     }
 
     prepareSandbox {
-        from("src/main/resources/lsp/cfmleditor-lsp.exe") {
-            into("${project.name}/lsp")
-        }
         from("src/main/resources/grammar/cfml.tmLanguage.json") {
             into("${project.name}/grammar")
         }
