@@ -16,7 +16,7 @@ public class SurroundVar implements Surrounder
     @Override
     public @NlsActions.ActionText String getTemplateDescription()
     {
-        return "#variable#";
+        return "Surround with #";
     }
 
     @Override

@@ -19,7 +19,7 @@ public class SurroundCfoutputHash implements Surrounder
     @Override
     public @NlsActions.ActionText String getTemplateDescription()
     {
-        return "<cfoutput>#variable#</cfoutput>";
+        return "Surround with CFOUTPUT and Pound Sign";
     }
 
     @Override

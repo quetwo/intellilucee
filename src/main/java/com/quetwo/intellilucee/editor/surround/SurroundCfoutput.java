@@ -19,7 +19,7 @@ public class SurroundCfoutput implements Surrounder
     @Override
     public @NlsActions.ActionText String getTemplateDescription()
     {
-        return "<cfoutput>variable</cfoutput>";
+        return "Surround with CFOUTPUT";
     }
 
     @Override

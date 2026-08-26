@@ -40,10 +40,7 @@ public final class CFMLSurroundHelper implements SurroundDescriptor
     private static boolean isCfmlFile(@NotNull PsiFile file)
     {
         String name = file.getName().toLowerCase(Locale.ROOT);
-        return name.endsWith(".cfm")
-            || name.endsWith(".cfc")
-            || name.endsWith(".cfs")
-            || name.endsWith(".cfml");
+        return name.endsWith(".cfm") || name.endsWith(".cfml");
     }
 
     @Override
