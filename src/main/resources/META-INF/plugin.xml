@@ -69,5 +69,13 @@
             <add-to-group group-id="NewGroup" anchor="last" />
         </action>
 
+        <action
+                id="CFML.OpenActiveApplicationFile"
+                class="com.quetwo.intellilucee.actions.CFMLOpenActiveApplicationFileAction"
+                text="Open Associated Application.cfc"
+                description="Open this file's Application.cfc">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+        </action>
+
     </actions>
 </idea-plugin>
