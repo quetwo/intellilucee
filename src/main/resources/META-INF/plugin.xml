@@ -43,6 +43,13 @@
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.editor.CFMLCommenter"/>
 
+        <lang.surroundDescriptor
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLSurroundHelper"/>
+        <lang.surroundDescriptor
+                language="TEXT"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLSurroundHelper"/>
+
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
     </extensions>
