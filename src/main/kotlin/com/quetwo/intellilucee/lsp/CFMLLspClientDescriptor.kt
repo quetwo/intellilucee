@@ -220,7 +220,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
     {
         return mapOf(
             "debug" to true,
-            "formatting" to mapOf("enabled" to true)
+            "formatting" to mapOf("enabled" to true, "queryFormat" to true, "lowercaseTags" to true)
         )
     }
 
