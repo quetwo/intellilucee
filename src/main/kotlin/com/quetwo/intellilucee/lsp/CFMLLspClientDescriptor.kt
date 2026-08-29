@@ -22,6 +22,7 @@ import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
 import kotlin.io.path.pathString
 
+@Suppress("DEPRECATION")
 class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor(project, "CFML")
 {
 
@@ -213,6 +214,14 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
     override fun isSupportedFile(file: VirtualFile): Boolean
     {
         return isSupportedExtension(file.extension)
+    }
+
+    override fun createInitializationOptions(): Any
+    {
+        return mapOf(
+            "debug" to true,
+            "formatting" to mapOf("enabled" to true)
+        )
     }
 
     override fun createCommandLine(): GeneralCommandLine

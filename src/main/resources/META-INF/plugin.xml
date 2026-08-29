@@ -92,5 +92,13 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
 
+        <action
+                id="CFML.FormatDocument"
+                class="com.quetwo.intellilucee.actions.CFMLFormatDocument"
+                text="Format This Document"
+                description="Format this document, according to the formatter rules">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.OpenActiveApplicationFile"/>
+        </action>
+
     </actions>
 </idea-plugin>
