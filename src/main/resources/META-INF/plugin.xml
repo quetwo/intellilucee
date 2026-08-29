@@ -72,6 +72,9 @@
 
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
+        <directoryProjectGenerator implementation="com.quetwo.intellilucee.project.CFMLProjectGenerator"/>
+        <newProjectWizard.generator implementation="com.quetwo.intellilucee.project.CFMLGeneratorNewProjectWizard"/>
+
     </extensions>
 
     <actions>
