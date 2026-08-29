@@ -18,6 +18,21 @@
 
     <extensions defaultExtensionNs="com.intellij">
 
+        <applicationService serviceImplementation="com.quetwo.intellilucee.settings.CFMLFormatterApplicationSettings"/>
+        <moduleService serviceImplementation="com.quetwo.intellilucee.settings.CFMLFormatterModuleSettings"/>
+
+        <applicationConfigurable
+                id="settings.intellilucee.cfml.formatter.application"
+                displayName="CFML Formatter"
+                parentId="tools"
+                instance="com.quetwo.intellilucee.settings.CFMLFormatterApplicationConfigurable"/>
+
+        <projectConfigurable
+                id="settings.intellilucee.cfml.formatter.project.overrides"
+                displayName="CFML Formatter Module Settings"
+                parentId="tools"
+                instance="com.quetwo.intellilucee.settings.CFMLFormatterProjectOverridesConfigurable"/>
+
         <fileType
                 name="CFML"
                 language="CFML"
