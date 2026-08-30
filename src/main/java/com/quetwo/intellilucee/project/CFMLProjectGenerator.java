@@ -17,6 +17,8 @@ import com.intellij.openapi.wm.impl.welcomeScreen.AbstractActionWithPanel;
 import com.intellij.platform.DirectoryProjectGenerator;
 import com.intellij.platform.ProjectGeneratorPeer;
 import com.quetwo.intellilucee.CFMLIcon;
+import com.quetwo.intellilucee.utils.QuickRandom;
+import com.sun.xml.bind.v2.model.annotation.Quick;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -71,7 +73,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 {
                     writeFile(baseDir, "docker-compose.yml", dockerCompose(settings));
                     writeFile(cfml, "Dockerfile", dockerfile(settings));
-                    writeFile(cfml, "secrets.txt", "");
+                    writeFile(cfml, "secrets.txt", cfSecretsFile(settings));
 
                     if (settings.includeDatabase)
                     {
@@ -79,9 +81,8 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                         VfsUtil.createDirectoryIfMissing(db, "sql");
                         if (db != null)
                         {
-                            writeFile(db, "secrets.txt", "");
+                            writeFile(db, "secrets.txt", dbSecretsFile(settings));
                         }
-                        //TODO: Create a secrets file that includes base configuration
                     }
 
                     if (settings.includeReverseProxy)
@@ -171,6 +172,10 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         {
             builder.append("\n  db:\n");
             builder.append("    image: ").append(databaseImage(settings.databaseType)).append("\n");
+            builder.append("    env_file:\n");
+            builder.append("        - ./db/secrets.txt\n");
+            builder.append("    volumes:\n");
+            builder.append("       - vol_db:/var/lib/mysql\n");
             builder.append("    ports:\n");
             builder.append("      - \"").append(databasePorts(settings.databaseType)).append("\"\n");
         }
@@ -183,10 +188,50 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             builder.append("      - \"80:80\"\n");
             builder.append("      - \"443:443\"\n");
             builder.append("    volumes:\n");
-            builder.append("      - ./proxy/config.toml:/etc/traefik/traefik.toml\n");
+            builder.append("       - vol_certs:/shared/certs/\n");
+            builder.append("       - ./proxy/config.toml:/etc/traefik/traefik.toml\n");
+            builder.append("       - /var/run/docker.sock:/var/run/docker.sock");
+        }
+
+        if (settings.includeDatabase ||  settings.includeReverseProxy)
+        {
+            builder.append("\n\nvolumes:\n");
+            if (settings.includeDatabase)
+            {
+                builder.append("  vol_db:\n");
+            }
+            if (settings.includeReverseProxy)
+            {
+                builder.append("  vol_certs:\n");
+            }
         }
 
         return builder.toString();
+    }
+
+    private static @NotNull String dbSecretsFile(@NotNull Settings settings)
+    {
+        StringBuilder builder = new StringBuilder();
+        switch (settings.databaseType)
+        {
+            case "MySQL": case "MariaDB":
+                builder.append("MYSQL_ROOT_PASSWORD=").append(QuickRandom.generateString(24));
+                builder.append("\nMYSQL_DATABASE=db_").append(settings.appName);
+                builder.append("\nMYSQL_USER=").append(settings.appName).append("_user");
+                builder.append("\nMYSQL_PASSWORD=").append(QuickRandom.generateString(14));
+                builder.append("\nDB_HOST=db");
+                break;
+            //TODO: ADD Secrets for POSTGRES and MSSQL
+        }
+        return  builder.toString();
+    }
+
+    private static @NotNull String cfSecretsFile(@NotNull Settings settings)
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append("LUCEE_ADMIN_ENABLES=true\n");
+        builder.append("LUCEE_ADMIN_PASSWORD=").append(QuickRandom.generateString(8));
+        return  builder.toString();
     }
 
     private static @NotNull String databaseImage(@NotNull String databaseType)
@@ -195,7 +240,6 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         {
             case "MySQL" -> "mysql:8.4";
             case "MariaDB" -> "mariadb:11";
-            case "Postgres" -> "postgres:16";
             case "MSSQL" -> "mcr.microsoft.com/mssql/server:2022-latest";
             default -> "postgres:16";
         };
