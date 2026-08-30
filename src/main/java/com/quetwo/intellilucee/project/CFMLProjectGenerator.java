@@ -18,7 +18,6 @@ import com.intellij.platform.DirectoryProjectGenerator;
 import com.intellij.platform.ProjectGeneratorPeer;
 import com.quetwo.intellilucee.CFMLIcon;
 import com.quetwo.intellilucee.utils.QuickRandom;
-import com.sun.xml.bind.v2.model.annotation.Quick;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
