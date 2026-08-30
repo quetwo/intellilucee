@@ -1,1 +1,3 @@
-script cfml
+component displayname="#[[$Title$]]#" output="false {
+#[[$END$]]#
+}

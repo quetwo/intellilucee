@@ -1,1 +1,3 @@
-cfml class tag
+<cfcomponent displayname=">#[[$Title$]]#" output="false">
+    #[[$END$]]#
+</cfcomponent>
