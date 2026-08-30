@@ -75,6 +75,11 @@
         <directoryProjectGenerator implementation="com.quetwo.intellilucee.project.CFMLProjectGenerator"/>
         <newProjectWizard.generator implementation="com.quetwo.intellilucee.project.CFMLGeneratorNewProjectWizard"/>
 
+        <internalFileTemplate name="CFML Page (tag)"/>
+        <internalFileTemplate name="CFML Page (script)"/>
+        <internalFileTemplate name="CFML Class (tag)"/>
+        <internalFileTemplate name="CFML Class (script)"/>
+
     </extensions>
 
     <actions>

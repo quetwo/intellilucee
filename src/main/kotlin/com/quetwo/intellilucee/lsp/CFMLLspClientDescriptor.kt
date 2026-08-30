@@ -218,6 +218,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
 
     override fun createInitializationOptions(): Any
     {
+        //TODO: Map the formatting settings to the LSP server on engine start
         return mapOf(
             "debug" to true,
             "formatting" to mapOf("enabled" to true, "queryFormat" to true, "lowercaseTags" to true)

@@ -31,10 +31,11 @@ public final class CFMLFileCreateActions extends CreateFileFromTemplateAction im
     protected void buildDialog(@NotNull Project project, @NotNull PsiDirectory psiDirectory, CreateFileFromTemplateDialog.@NotNull Builder builder)
     {
         builder.setTitle( "New CFML File" )
-                .addKind( "CFML Class (tag)", CFMLIcon.FILE, CLASS_TEMPLATE_TAG_NAME )
-                .addKind( "CFML Class (script)", CFMLIcon.FILE, CLASS_TEMPLATE_SCRIPT_NAME )
                 .addKind( "CFML Page (tag)", CFMLIcon.FILE, PAGE_TEMPLATE_TAG_NAME )
-                .addKind( "CFML Page (script)", CFMLIcon.FILE, PAGE_TEMPLATE_SCRIPT_NAME );
+                .addKind( "CFML Page (script)", CFMLIcon.FILE, PAGE_TEMPLATE_SCRIPT_NAME )
+                .addKind( "CFML Class (tag)", CFMLIcon.FILE, CLASS_TEMPLATE_TAG_NAME )
+                .addKind( "CFML Class (script)", CFMLIcon.FILE, CLASS_TEMPLATE_SCRIPT_NAME );
+
     }
 
     @Override
