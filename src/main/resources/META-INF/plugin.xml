@@ -1,11 +1,24 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
-<idea-plugin>
+<idea-plugin require-restart="true">
     <id>com.quetwo.IntelliLucee</id>
     <name>IntelliLucee</name>
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor url="https://www.lucee.org">Lucee Association Switzerland</vendor>
     <description><![CDATA[
-        Plugin for Lucee CFML as well as Adobe ColdFusion.  Supports .cfm, .cfc., .cfs files
+        Plugin for the Lucee CFML runtime that helps developers build ColdFusion based applications.  Compatible with
+        Lucee, Adobe ColdFusion and BoxLang based engines.
+
+        Includes support for .CFM, .CFML, .CFC and .CFS based files.
+
+        - Includes Syntax Highlighting, auto-complete, built-in documentation, component introspection
+        - New project wizards and new file templates
+        - Surround with and commenting helpers
+        - Formatter / Linter
+
+        Roadmap items:
+        - Integrated debugger support
+        - Better support for component class path introspection
+        - Better support for ORM scaffolding
         ]]></description>
 
     <depends>com.intellij.modules.json</depends>
