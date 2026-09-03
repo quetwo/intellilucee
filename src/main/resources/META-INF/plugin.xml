@@ -1,7 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin require-restart="true">
     <id>com.quetwo.IntelliLucee</id>
-    <name>IntelliLucee</name>
+    <name>Lucee CFML</name>
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor url="https://www.lucee.org">Lucee Association Switzerland</vendor>
     <description><![CDATA[
