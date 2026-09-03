@@ -7,6 +7,7 @@ import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
+import com.quetwo.intellilucee.settings.CFMLFormatterSettingsResolver
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import java.net.URI
 import java.net.http.HttpClient
@@ -218,10 +219,23 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
 
     override fun createInitializationOptions(): Any
     {
-        //TODO: Map the formatting settings to the LSP server on engine start
+        val settings = CFMLFormatterSettingsResolver.resolve(module = null)
         return mapOf(
             "debug" to true,
-            "formatting" to mapOf("enabled" to true, "queryFormat" to true, "lowercaseTags" to true)
+            "formatting" to mapOf(
+                "enabled" to settings.formatterEnabled,
+                "queryFormat" to settings.formatWithinQueryTags,
+                "whitespaceOnly" to settings.ignoreWhiteSpaceInFormatter,
+                "lowercaseTags" to settings.updateCfTagsToLowercase,
+                "lowercaseAttributes" to settings.updateAttributesToLowercase,
+                "doubleQuoteAttributes" to settings.normalizeAttributeValuesToDoubleQuotes,
+                "queryUppercaseKeywords" to settings.normalizeSqlKeywordsToUppercase,
+                "scopeCase" to settings.normalizeCfmlScopeNames,
+                "commaPosition" to settings.commaPlacementInMultilineArgumentLists,
+                "queryCommaPosition" to "preserve",
+                "lineWidth" to settings.lineWidth,
+                "attrBreakThreshold" to settings.numberOfAttributesPerLine,
+                "indentWidth" to 4)
         )
     }
 
