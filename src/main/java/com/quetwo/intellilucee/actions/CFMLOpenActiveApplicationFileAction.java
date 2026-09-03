@@ -11,6 +11,7 @@ import com.intellij.platform.lsp.api.LspClient;
 import com.intellij.platform.lsp.api.LspClientManager;
 import com.quetwo.intellilucee.lsp.CFMLLspClientDescriptor;
 import com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider;
+import com.quetwo.intellilucee.utils.PathUtils;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.jetbrains.annotations.NotNull;
@@ -32,6 +33,7 @@ public final class CFMLOpenActiveApplicationFileAction extends AnAction
             return;
         }
 
+        String documentLocation = PathUtils.fixURIForLSP(file.getUrl());
         LspClientManager manager = LspClientManager.getInstance(project);
         manager.startClientsIfNeeded(CFMLLspIntegrationProvider.class);
         Collection<LspClient> clients = manager.getClients(CFMLLspIntegrationProvider.class);
@@ -44,7 +46,7 @@ public final class CFMLOpenActiveApplicationFileAction extends AnAction
             }
 
             ApplicationManager.getApplication().executeOnPooledThread(() ->
-                client.sendRequestSync(LspClient.DEFAULT_REQUEST_TIMEOUT_MS, (LanguageServer server) -> server.getWorkspaceService().executeCommand(new ExecuteCommandParams(COMMAND, List.of(file.getUrl()))))
+                client.sendRequestSync(LspClient.DEFAULT_REQUEST_TIMEOUT_MS, (LanguageServer server) -> server.getWorkspaceService().executeCommand(new ExecuteCommandParams(COMMAND, List.of(documentLocation))))
             );
             return;
         }
