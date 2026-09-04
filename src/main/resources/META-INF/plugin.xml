@@ -114,11 +114,19 @@
         </action>
 
         <action
+                id="CFML.AddApplicationLifecycleStubs"
+                class="com.quetwo.intellilucee.actions.CFMLAddApplicationStubsAction"
+                text="Add Application Lifecycle Stubs"
+                description="Add Application.cfc lifecycle function stubs">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.OpenActiveApplicationFile"/>
+        </action>
+
+        <action
                 id="CFML.FormatDocument"
                 class="com.quetwo.intellilucee.actions.CFMLFormatDocument"
                 text="Format This Document"
                 description="Format this document, according to the formatter rules">
-            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.OpenActiveApplicationFile"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.AddApplicationLifecycleStubs"/>
         </action>
 
     </actions>
