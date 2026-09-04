@@ -29,12 +29,15 @@ public final class CFMLAddApplicationStubsAction extends AnAction
 
     private static final List<FunctionStub> AVAILABLE_STUBS = List.of(
         new FunctionStub("onApplicationStart", "public boolean function onApplicationStart()\n{\n    return true;\n}"),
-        new FunctionStub("onApplicationEnd", "public void function onApplicationEnd(struct applicationScope={})\n{\nreturn;\n}"),
-        new FunctionStub("onSessionStart", "public void function onSessionStart()\n{\nreturn;\n}"),
-        new FunctionStub("onSessionEnd", "public void function onSessionEnd(required struct sessionScope, struct applicationScope={})\n{\nreturn;\n}"),
+        new FunctionStub("onApplicationEnd", "public void function onApplicationEnd(struct applicationScope={})\n{\n    return;\n}"),
+        new FunctionStub("onSessionStart", "public void function onSessionStart()\n{\n    return;\n}"),
+        new FunctionStub("onSessionEnd", "public void function onSessionEnd(required struct sessionScope, struct applicationScope={})\n{\n    return;\n}"),
         new FunctionStub("onRequestStart", "public boolean function onRequestStart(required string targetPage)\n{\n    return true;\n}"),
-        new FunctionStub("onRequest", "public void function onRequest(required string targetPage)\n{\ninclude arguments.targetPage;\nreturn;\n}"),
-        new FunctionStub("onError", "public void function onError(required any exception, required string eventName)\n{\nreturn;\n}"),
+        new FunctionStub("onRequest", "public void function onRequest(required string targetPage)\n{\ninclude arguments.targetPage;\n    return;\n}"),
+        new FunctionStub("onRequestEnd","public void function onRequestEnd()\n{\n    return;\n}"),
+        new FunctionStub("onCFCRequest","public void function onCFCRequest(string cfcName, string method, struct args)\n{\n    return;\n}"),
+        new FunctionStub("onError", "public void function onError(required any exception, required string eventName)\n{\n    return;\n}"),
+        new FunctionStub("onAbort","public void function onAbort(required string targetPage)\n{\n    return;\n}"),
         new FunctionStub("onMissingTemplate", "public boolean function onMissingTemplate(required string targetPage)\n{\n    return true;\n}")
     );
 
