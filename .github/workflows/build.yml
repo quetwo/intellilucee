@@ -94,6 +94,10 @@ jobs:
         with:
           cache-read-only: true
 
+      # Fix Gradle Permissions due to Windows vs. Linux runtimes
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
       # Run tests
       - name: Run Tests
         run: ./gradlew check
@@ -137,6 +141,10 @@ jobs:
         with:
           cache-read-only: true
 
+      # Fix Gradle Permissions due to Windows vs. Linux runtimes
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
       # Run Verify Plugin task and IntelliJ Plugin Verifier tool
       - name: Run Plugin Verification tasks
         run: ./gradlew verifyPlugin
@@ -176,6 +184,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           cache-read-only: true
+
+      # Fix Gradle Permissions due to Windows vs. Linux runtimes
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
 
       # Remove old release drafts by using the curl request for the available releases with a draft flag
       - name: Remove Old Release Drafts
