@@ -24,7 +24,7 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
         ASTNode rootNode = root.getNode();
         if (rootNode == null)
         {
-            return FoldingDescriptor.EMPTY;
+            return FoldingDescriptor.EMPTY_ARRAY;
         }
         List<FoldingDescriptor> descriptors = new ArrayList<>();
 
@@ -51,7 +51,7 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
                     TextRange range = TextRange.create(keywordStart, closingBrace + 1);
                     if (isMultiline(text, range))
                     {
-                        descriptors.add(new FoldingDescriptor(rootNode, range));
+                        descriptors.add(new FoldingDescriptor(rootNode, range, null));
                     }
                     searchFrom = closingBrace + 1;
                 }
