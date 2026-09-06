@@ -1,9 +1,8 @@
 package com.quetwo.intellilucee.lsp
 
 import com.intellij.execution.configurations.GeneralCommandLine
-import com.intellij.ide.plugins.PluginManagerCore
+import com.intellij.openapi.application.PluginPathManager
 import com.intellij.openapi.diagnostic.Logger
-import com.intellij.openapi.extensions.PluginId
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
@@ -32,7 +31,6 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
     companion object
     {
         private val SUPPORTED_EXTENSIONS = setOf("cfm", "cfc", "cfs", "cfml")
-        private const val PLUGIN_ID = "com.quetwo.IntelliLucee"
         private const val GITHUB_LATEST_DOWNLOAD_PREFIX = "https://github.com/cfmleditor/cfmleditor-lsp/releases/latest/download/"
         private const val WINDOWS_EXE_NAME = "cfmleditor-lsp.exe"
         private const val UNIX_EXE_NAME = "cfmleditor-lsp"
@@ -44,12 +42,11 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
 
         private fun resolveLspExecutablePath(): Path
         {
-            val pluginPath = PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.pluginPath
-                ?: error("Unable to resolve IntelliLucee plugin path")
-
+            val pluginPath = PluginPathManager.getPluginHome("IntelliLucee").toPath()
             val lspDir = pluginPath.resolve("lsp")
-            Files.createDirectories(lspDir)
+            LOG.info("Using lsp executable path - $lspDir")
 
+            Files.createDirectories(lspDir)
             val expectedExecutable = lspDir.resolve(if (isWindows()) WINDOWS_EXE_NAME else UNIX_EXE_NAME)
             val archiveName = resolveArchiveName()
             val archivePath = lspDir.resolve(archiveName)
@@ -165,7 +162,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
         private fun extractTarGzArchive(archivePath: Path, destination: Path)
         {
             TarArchiveInputStream(GZIPInputStream(Files.newInputStream(archivePath))).use { tar ->
-                var entry = tar.nextTarEntry
+                var entry = tar.nextEntry
                 while (entry != null)
                 {
                     val target = destination.resolve(entry.name).normalize()
@@ -182,7 +179,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
                         target.parent?.let { Files.createDirectories(it) }
                         Files.copy(tar, target, StandardCopyOption.REPLACE_EXISTING)
                     }
-                    entry = tar.nextTarEntry
+                    entry = tar.nextEntry
                 }
             }
         }
