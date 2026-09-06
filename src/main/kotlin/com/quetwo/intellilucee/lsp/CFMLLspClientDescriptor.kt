@@ -165,7 +165,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
         private fun extractTarGzArchive(archivePath: Path, destination: Path)
         {
             TarArchiveInputStream(GZIPInputStream(Files.newInputStream(archivePath))).use { tar ->
-                var entry = tar.nextTarEntry
+                var entry = tar.nextEntry
                 while (entry != null)
                 {
                     val target = destination.resolve(entry.name).normalize()
@@ -182,7 +182,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
                         target.parent?.let { Files.createDirectories(it) }
                         Files.copy(tar, target, StandardCopyOption.REPLACE_EXISTING)
                     }
-                    entry = tar.nextTarEntry
+                    entry = tar.nextEntry
                 }
             }
         }
