@@ -188,9 +188,16 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x ./gradlew
 
+      # Download Artifact to local runner to prepare to upload to release
+      - uses: actions/download-artifact@v8
+        with:
+          name: plugin-distribution
+      - name: Prepare Asset for Release
+        run: ls -R
+
       # Upload Successful Asset to Release
       - name: Upload Asset to Release
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-            gh release upload ${{ github.event.release.tag_name }} ./build/distributions/*.zip
+            gh release upload ${{ github.event.release.tag_name }} ./*.zip
