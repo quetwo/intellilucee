@@ -58,7 +58,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
         {
             val pluginPath = PluginPathManager.getPluginHome("IntelliLucee").toPath()
             val selectedVersion = CFMLGlobalSettings.getInstance().state.lspReleaseVersion.trim().ifEmpty { CFMLLspReleaseProvider.LATEST }
-            val lspDir = pluginPath.resolve("lsp").resolve(selectedVersion)
+            val lspDir = pluginPath.resolve("lsp")
             LOG.info("Using lsp executable path for version $selectedVersion - $lspDir")
 
             Files.createDirectories(lspDir)
