@@ -7,6 +7,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
 import com.quetwo.intellilucee.settings.CFMLFormatterSettingsResolver
+import com.quetwo.intellilucee.settings.CFMLGlobalSettings
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import java.net.URI
 import java.net.http.HttpClient
@@ -32,6 +33,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
     {
         private val SUPPORTED_EXTENSIONS = setOf("cfm", "cfc", "cfs", "cfml")
         private const val GITHUB_LATEST_DOWNLOAD_PREFIX = "https://github.com/cfmleditor/cfmleditor-lsp/releases/latest/download/"
+        private const val GITHUB_RELEASE_DOWNLOAD_PREFIX = "https://github.com/cfmleditor/cfmleditor-lsp/releases/download/"
         private const val WINDOWS_EXE_NAME = "cfmleditor-lsp.exe"
         private const val UNIX_EXE_NAME = "cfmleditor-lsp"
 
@@ -40,21 +42,34 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
             return extension?.lowercase() in SUPPORTED_EXTENSIONS
         }
 
+        internal fun resolveDownloadUrl(version: String, archiveName: String): String
+        {
+            return if (version.equals(CFMLLspReleaseProvider.LATEST, ignoreCase = true))
+            {
+                "$GITHUB_LATEST_DOWNLOAD_PREFIX$archiveName"
+            }
+            else
+            {
+                "$GITHUB_RELEASE_DOWNLOAD_PREFIX$version/$archiveName"
+            }
+        }
+
         private fun resolveLspExecutablePath(): Path
         {
             val pluginPath = PluginPathManager.getPluginHome("IntelliLucee").toPath()
-            val lspDir = pluginPath.resolve("lsp")
-            LOG.info("Using lsp executable path - $lspDir")
+            val selectedVersion = CFMLGlobalSettings.getInstance().state.lspReleaseVersion.trim().ifEmpty { CFMLLspReleaseProvider.LATEST }
+            val lspDir = pluginPath.resolve("lsp").resolve(selectedVersion)
+            LOG.info("Using lsp executable path for version $selectedVersion - $lspDir")
 
             Files.createDirectories(lspDir)
             val expectedExecutable = lspDir.resolve(if (isWindows()) WINDOWS_EXE_NAME else UNIX_EXE_NAME)
             val archiveName = resolveArchiveName()
             val archivePath = lspDir.resolve(archiveName)
-            val downloadUrl = "$GITHUB_LATEST_DOWNLOAD_PREFIX$archiveName"
+            val downloadUrl = resolveDownloadUrl(selectedVersion, archiveName)
 
             try
             {
-                LOG.info("Downloading CFML LSP from: $downloadUrl")
+                LOG.info("Downloading CFML LSP ($selectedVersion) from: $downloadUrl")
                 downloadFile(downloadUrl, archivePath)
                 extractArchive(archivePath, lspDir)
             }
@@ -62,8 +77,15 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
             {
                 if (expectedExecutable.isRegularFile())
                 {
-                    LOG.warn("Failed to refresh CFML LSP from latest release, using cached executable: ${expectedExecutable.pathString}", exception)
+                    LOG.warn("Failed to refresh CFML LSP for version $selectedVersion, using cached executable: ${expectedExecutable.pathString}", exception)
                     return expectedExecutable
+                }
+
+                val legacyExecutable = pluginPath.resolve("lsp").resolve(if (isWindows()) WINDOWS_EXE_NAME else UNIX_EXE_NAME)
+                if (selectedVersion.equals(CFMLLspReleaseProvider.LATEST, ignoreCase = true) && legacyExecutable.isRegularFile())
+                {
+                    LOG.warn("Failed to refresh CFML LSP for version $selectedVersion, using legacy cached executable: ${legacyExecutable.pathString}", exception)
+                    return legacyExecutable
                 }
 
                 throw exception

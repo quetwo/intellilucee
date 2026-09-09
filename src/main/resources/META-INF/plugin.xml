@@ -32,8 +32,15 @@
 
     <extensions defaultExtensionNs="com.intellij">
 
+        <applicationService serviceImplementation="com.quetwo.intellilucee.settings.CFMLGlobalSettings"/>
         <applicationService serviceImplementation="com.quetwo.intellilucee.settings.CFMLFormatterApplicationSettings"/>
         <moduleService serviceImplementation="com.quetwo.intellilucee.settings.CFMLFormatterModuleSettings"/>
+
+        <applicationConfigurable
+                id="settings.intellilucee.global"
+                displayName="Lucee CFML"
+                parentId="tools"
+                instance="com.quetwo.intellilucee.settings.CFMLGlobalSettingsConfigurable"/>
 
         <applicationConfigurable
                 id="settings.intellilucee.cfml.formatter.application"
