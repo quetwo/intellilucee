@@ -1,9 +1,11 @@
 package com.quetwo.intellilucee.lsp
 
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.PluginPathManager
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.platform.lsp.api.ProjectWideLspClientDescriptor
 import com.quetwo.intellilucee.settings.CFMLFormatterSettingsResolver
@@ -54,14 +56,35 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
             }
         }
 
-        private fun resolveLspExecutablePath(): Path
+        internal fun resolveLspExecutablePath(project: Project? = null): Path
         {
             val pluginPath = PluginPathManager.getPluginHome("IntelliLucee").toPath()
             val selectedVersion = CFMLGlobalSettings.getInstance().state.lspReleaseVersion.trim().ifEmpty { CFMLLspReleaseProvider.LATEST }
             val lspDir = pluginPath.resolve("lsp").resolve(selectedVersion)
             LOG.info("Using lsp executable path for version $selectedVersion - $lspDir")
 
-            Files.createDirectories(lspDir)
+            try
+            {
+                Files.createDirectories(lspDir)
+            }
+            catch (exception: Exception)
+            {
+                LOG.error("Failed to create CFML LSP directory: $lspDir", exception)
+                val errorMessage = "Failed to create the directory for CFML Code Plugin at ${lspDir.pathString}: ${exception.localizedMessage ?: exception.message ?: ""}".trimEnd(':', ' ')
+                val app = ApplicationManager.getApplication()
+                if (app != null && !app.isDispatchThread)
+                {
+                    app.invokeLater {
+                        Messages.showErrorDialog(project, errorMessage, "Lucee CFML Error")
+                    }
+                }
+                else
+                {
+                    Messages.showErrorDialog(project, errorMessage, "Lucee CFML Error")
+                }
+                throw exception
+            }
+
             val expectedExecutable = lspDir.resolve(if (isWindows()) WINDOWS_EXE_NAME else UNIX_EXE_NAME)
             val archiveName = resolveArchiveName()
             val archivePath = lspDir.resolve(archiveName)
@@ -260,7 +283,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
 
     override fun createCommandLine(): GeneralCommandLine
     {
-        return GeneralCommandLine(resolveLspExecutablePath().toString())
+        return GeneralCommandLine(resolveLspExecutablePath(project).toString())
     }
 
 }
