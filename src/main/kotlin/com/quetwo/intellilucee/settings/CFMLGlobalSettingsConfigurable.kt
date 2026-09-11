@@ -3,6 +3,7 @@ package com.quetwo.intellilucee.settings
 import com.intellij.openapi.options.BoundSearchableConfigurable
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.ui.dsl.builder.bindItem
+import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import com.quetwo.intellilucee.lsp.CFMLLspReleaseProvider
 
@@ -22,6 +23,12 @@ class CFMLGlobalSettingsConfigurable : BoundSearchableConfigurable("Lucee CFML",
                             setter = { if (it != null) settings.state.lspReleaseVersion = it }
                         )
                         .comment("Select the release version of the CFML LSP server. Default is LATEST.")
+                }
+            }
+            group("Editor Options") {
+                row {
+                    checkBox("Auto-close CFML tags")
+                        .bindSelected(settings.state::autoCloseTags)
                 }
             }
         }

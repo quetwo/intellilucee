@@ -23,6 +23,7 @@ class CFMLGlobalSettings : PersistentStateComponent<CFMLGlobalSettingsState>
 
     companion object
     {
+        @JvmStatic
         fun getInstance(): CFMLGlobalSettings
         {
             return ApplicationManager.getApplication().getService(CFMLGlobalSettings::class.java)

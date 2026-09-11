@@ -39,7 +39,7 @@
         <applicationConfigurable
                 id="settings.intellilucee.global"
                 displayName="Lucee CFML"
-                parentId="tools"
+                parentId="language"
                 instance="com.quetwo.intellilucee.settings.CFMLGlobalSettingsConfigurable"/>
 
         <applicationConfigurable
