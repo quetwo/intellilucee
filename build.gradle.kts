@@ -41,4 +41,19 @@ tasks {
             into("${project.name}/grammar")
         }
     }
+
+    prepareTestSandbox {
+        from("src/main/resources/grammar/cfml.tmLanguage.json") {
+            into("${project.name}/grammar")
+        }
+        from("src/main/resources/grammar/cfml-cfs.tmLanguage.json") {
+            into("${project.name}/grammar")
+        }
+        from("src/main/resources/grammar/language-configuration.json") {
+            into("${project.name}/grammar")
+        }
+        from("src/main/resources/grammar/package.json") {
+            into("${project.name}/grammar")
+        }
+    }
 }

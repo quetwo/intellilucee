@@ -79,25 +79,36 @@
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.editor.CFMLCommenter"/>
 
+        <!-- Stub Lexer/Parser to allow for the TextMate bundle implementer to update the screen -->
         <lang.parserDefinition
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.parser.CFMLParserDefinition"/>
 
+        <!-- Support for the 'Surrounds with...' options in the menus -->
         <lang.surroundDescriptor
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.editor.CFMLSurroundHelper"/>
 
+        <!-- Support for folding functions -->
         <lang.foldingBuilder
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.editor.CFMLFoldingBuilder"/>
 
+        <!-- Support for auto-closing pound signs, etc. inthe editor -->
+        <typedHandler implementation="com.quetwo.intellilucee.editor.CFMLTypedHandler"/>
+
+        <!-- LSP server implementation to add support for in-line docs and formatting commands -->
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
+
+        <!-- Support for the Debugger Configuration -->
         <configurationType implementation="com.quetwo.intellilucee.debugger.CFMLDapRemoteConfigurationType"/>
         <xdebugger.breakpointType implementation="com.quetwo.intellilucee.debugger.CFMLLineBreakpointType"/>
 
+        <!-- Project Wizard support -->
         <directoryProjectGenerator implementation="com.quetwo.intellilucee.project.CFMLProjectGenerator"/>
         <newProjectWizard.generator implementation="com.quetwo.intellilucee.project.CFMLGeneratorNewProjectWizard"/>
 
+        <!-- Files for new file templates -->
         <internalFileTemplate name="CFML Page (tag)"/>
         <internalFileTemplate name="CFML Page (script)"/>
         <internalFileTemplate name="CFML Class (tag)"/>
