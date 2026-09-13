@@ -6,16 +6,20 @@ import com.intellij.util.ProcessingContext
 import com.quetwo.intellilucee.psi.CFMLPsiReference
 import com.quetwo.intellilucee.psi.CFMLPsiUtil
 
-class CFMLReferenceContributor : PsiReferenceContributor() {
+class CFMLReferenceContributor : PsiReferenceContributor()
+{
 
-    override fun registerReferenceProviders(registrar: PsiReferenceRegistrar) {
+    override fun registerReferenceProviders(registrar: PsiReferenceRegistrar)
+    {
         registrar.registerReferenceProvider(
             PlatformPatterns.psiElement(PsiElement::class.java),
-            object : PsiReferenceProvider() {
+            object : PsiReferenceProvider()
+            {
                 override fun getReferencesByElement(
                     element: PsiElement,
                     context: ProcessingContext
-                ): Array<PsiReference> {
+                ): Array<PsiReference>
+                {
                     if (element is PsiFile) return PsiReference.EMPTY_ARRAY
                     val file = element.containingFile ?: return PsiReference.EMPTY_ARRAY
                     if (!CFMLPsiUtil.isCFMLFile(file)) return PsiReference.EMPTY_ARRAY
@@ -25,16 +29,20 @@ class CFMLReferenceContributor : PsiReferenceContributor() {
                     val refs = mutableListOf<PsiReference>()
 
                     // Find function calls within this element
-                    for (call in model.functionCalls) {
-                        if (elementRange.contains(call.range)) {
+                    for (call in model.functionCalls)
+                    {
+                        if (elementRange.contains(call.range))
+                        {
                             val relativeRange = call.range.shiftRight(-elementRange.startOffset)
                             refs.add(CFMLPsiReference(element, relativeRange))
                         }
                     }
 
                     // Find variable usages within this element
-                    for (usage in model.variableUsages) {
-                        if (elementRange.contains(usage.range)) {
+                    for (usage in model.variableUsages)
+                    {
+                        if (elementRange.contains(usage.range))
+                        {
                             val relativeRange = usage.range.shiftRight(-elementRange.startOffset)
                             refs.add(CFMLPsiReference(element, relativeRange))
                         }

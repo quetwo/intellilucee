@@ -12,9 +12,11 @@ import com.quetwo.intellilucee.psi.CFMLNamedElement
 import com.quetwo.intellilucee.psi.CFMLPsiUtil
 import com.quetwo.intellilucee.psi.CFMLVariableElement
 
-class CFMLFindUsagesProvider : FindUsagesProvider {
+class CFMLFindUsagesProvider : FindUsagesProvider
+{
 
-    override fun getWordsScanner(): WordsScanner {
+    override fun getWordsScanner(): WordsScanner
+    {
         return DefaultWordsScanner(
             CFMLLexer(),
             TokenSet.create(CFMLTokenTypes.IDENTIFIER, CFMLTokenTypes.TEXT),
@@ -23,7 +25,8 @@ class CFMLFindUsagesProvider : FindUsagesProvider {
         )
     }
 
-    override fun canFindUsagesFor(psiElement: PsiElement): Boolean {
+    override fun canFindUsagesFor(psiElement: PsiElement): Boolean
+    {
         if (psiElement is CFMLNamedElement) return true
         val file = psiElement.containingFile ?: return false
         if (!CFMLPsiUtil.isCFMLFile(file)) return false
@@ -32,14 +35,18 @@ class CFMLFindUsagesProvider : FindUsagesProvider {
 
     override fun getHelpId(psiElement: PsiElement): String? = null
 
-    override fun getType(element: PsiElement): String {
-        return when (element) {
+    override fun getType(element: PsiElement): String
+    {
+        return when (element)
+        {
             is CFMLFunctionElement -> "function"
             is CFMLVariableElement -> "variable"
-            else -> {
+            else ->
+            {
                 val file = element.containingFile ?: return "element"
                 val resolved = CFMLPsiUtil.resolveSymbolAt(file, element.textRange.startOffset)
-                when (resolved) {
+                when (resolved)
+                {
                     is CFMLFunctionElement -> "function"
                     is CFMLVariableElement -> "variable"
                     else -> "element"
@@ -48,7 +55,8 @@ class CFMLFindUsagesProvider : FindUsagesProvider {
         }
     }
 
-    override fun getDescriptiveName(element: PsiElement): String {
+    override fun getDescriptiveName(element: PsiElement): String
+    {
         if (element is CFMLNamedElement) return element.name
         val file = element.containingFile ?: return element.text
         val resolved = CFMLPsiUtil.resolveSymbolAt(file, element.textRange.startOffset)
@@ -56,7 +64,8 @@ class CFMLFindUsagesProvider : FindUsagesProvider {
         return element.text
     }
 
-    override fun getNodeText(element: PsiElement, useFullName: Boolean): String {
+    override fun getNodeText(element: PsiElement, useFullName: Boolean): String
+    {
         return getDescriptiveName(element)
     }
 }

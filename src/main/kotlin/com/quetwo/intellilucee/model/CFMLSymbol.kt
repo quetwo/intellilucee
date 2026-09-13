@@ -2,7 +2,8 @@ package com.quetwo.intellilucee.model
 
 import com.intellij.openapi.util.TextRange
 
-sealed interface CFMLSymbol {
+sealed interface CFMLSymbol
+{
     val name: String
     val range: TextRange
 }
@@ -39,29 +40,35 @@ class CFMLDocumentModel(
     val functions: List<CFMLFunctionDeclaration>,
     val functionCalls: List<CFMLFunctionCall>,
     val variableDeclarations: List<CFMLVariableDeclaration>,
-    val variableUsages: List<CFMLVariableUsage>
-) {
-    fun findFunctionDeclaration(name: String): CFMLFunctionDeclaration? {
+    val variableUsages: List<CFMLVariableUsage>)
+{
+    fun findFunctionDeclaration(name: String): CFMLFunctionDeclaration?
+    {
         return functions.firstOrNull { it.name.equals(name, ignoreCase = true) }
     }
 
-    fun findFunctionCalls(name: String): List<CFMLFunctionCall> {
+    fun findFunctionCalls(name: String): List<CFMLFunctionCall>
+    {
         return functionCalls.filter { it.name.equals(name, ignoreCase = true) }
     }
 
-    fun getFunctionUsageCount(functionDecl: CFMLFunctionDeclaration): Int {
+    fun getFunctionUsageCount(functionDecl: CFMLFunctionDeclaration): Int
+    {
         return functionCalls.count { it.name.equals(functionDecl.name, ignoreCase = true) }
     }
 
-    fun findVariableDeclaration(name: String, offset: Int): CFMLVariableDeclaration? {
+    fun findVariableDeclaration(name: String, offset: Int): CFMLVariableDeclaration?
+    {
         val bareName = cleanVariableName(name)
         val enclosingFunc = findEnclosingFunction(offset)
-        if (enclosingFunc != null) {
+        if (enclosingFunc != null)
+        {
             // First search inside local variables / parameters of this function
             val localDecl = variableDeclarations.firstOrNull {
                 it.enclosingFunction == enclosingFunc && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
             }
-            if (localDecl != null) {
+            if (localDecl != null)
+            {
                 return localDecl
             }
         }
@@ -73,49 +80,65 @@ class CFMLDocumentModel(
         }
     }
 
-    fun findVariableUsages(decl: CFMLVariableDeclaration): List<CFMLVariableUsage> {
+    fun findVariableUsages(decl: CFMLVariableDeclaration): List<CFMLVariableUsage>
+    {
         val bareName = cleanVariableName(decl.name)
-        return if (decl.enclosingFunction != null && decl.isLocal) {
+        return if (decl.enclosingFunction != null && decl.isLocal)
+        {
             variableUsages.filter {
-                it.enclosingFunction == decl.enclosingFunction && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+                it.enclosingFunction == decl.enclosingFunction && cleanVariableName(it.name).equals(
+                    bareName,
+                    ignoreCase = true
+                )
             }
-        } else {
+        }
+        else
+        {
             variableUsages.filter {
                 cleanVariableName(it.name).equals(bareName, ignoreCase = true)
             }
         }
     }
 
-    fun findEnclosingFunction(offset: Int): CFMLFunctionDeclaration? {
+    fun findEnclosingFunction(offset: Int): CFMLFunctionDeclaration?
+    {
         return functions.firstOrNull { func ->
             func.bodyRange?.containsOffset(offset) == true || func.range.containsOffset(offset)
         }
     }
 
-    fun findSymbolAt(offset: Int): CFMLSymbol? {
+    fun findSymbolAt(offset: Int): CFMLSymbol?
+    {
         // Look in function declarations
-        for (func in functions) {
+        for (func in functions)
+        {
             if (func.nameRange.containsOffset(offset)) return func
         }
         // Look in variable declarations
-        for (v in variableDeclarations) {
+        for (v in variableDeclarations)
+        {
             if (v.nameRange.containsOffset(offset)) return v
         }
         // Look in function calls
-        for (call in functionCalls) {
+        for (call in functionCalls)
+        {
             if (call.range.containsOffset(offset)) return call
         }
         // Look in variable usages
-        for (v in variableUsages) {
+        for (v in variableUsages)
+        {
             if (v.range.containsOffset(offset)) return v
         }
         return null
     }
 
-    companion object {
-        fun cleanVariableName(rawName: String): String {
+    companion object
+    {
+        fun cleanVariableName(rawName: String): String
+        {
             val lower = rawName.lowercase()
-            return when {
+            return when
+            {
                 lower.startsWith("local.") -> rawName.substring(6)
                 lower.startsWith("variables.") -> rawName.substring(10)
                 lower.startsWith("arguments.") -> rawName.substring(10)
