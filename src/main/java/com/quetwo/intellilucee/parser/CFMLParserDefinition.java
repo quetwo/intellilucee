@@ -17,7 +17,9 @@ import org.jetbrains.annotations.NotNull;
 public class CFMLParserDefinition implements ParserDefinition
 {
 
-    private static final TokenSet WHITE_SPACES = TokenSet.create(TokenType.WHITE_SPACE);
+    private static final TokenSet WHITE_SPACES = TokenSet.create(TokenType.WHITE_SPACE, CFMLTokenTypes.WHITE_SPACE);
+    private static final TokenSet COMMENTS = TokenSet.create(CFMLTokenTypes.COMMENT);
+    private static final TokenSet STRINGS = TokenSet.create(CFMLTokenTypes.STRING);
 
     @Override
     public @NotNull Lexer createLexer(Project project)
@@ -40,13 +42,13 @@ public class CFMLParserDefinition implements ParserDefinition
     @Override
     public @NotNull TokenSet getCommentTokens()
     {
-        return TokenSet.EMPTY;
+        return COMMENTS;
     }
 
     @Override
     public @NotNull TokenSet getStringLiteralElements()
     {
-        return TokenSet.EMPTY;
+        return STRINGS;
     }
 
     @Override

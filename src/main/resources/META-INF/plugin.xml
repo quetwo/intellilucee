@@ -97,6 +97,35 @@
         <!-- Support for auto-closing pound signs, etc. inthe editor -->
         <typedHandler implementation="com.quetwo.intellilucee.editor.CFMLTypedHandler"/>
 
+        <!-- Find Usages support for CFML functions and variables -->
+        <lang.findUsagesProvider
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLFindUsagesProvider"/>
+        <findUsagesHandlerFactory
+                implementation="com.quetwo.intellilucee.editor.CFMLFindUsagesHandlerFactory"/>
+
+        <!-- Goto Declaration (Ctrl-Click / Cmd-Click) for CFML functions and variables -->
+        <gotoDeclarationHandler
+                implementation="com.quetwo.intellilucee.editor.CFMLGotoDeclarationHandler"/>
+
+        <!-- References Contributor for CFML -->
+        <psi.referenceContributor
+                language="CFML"
+                implementation="com.quetwo.intellilucee.editor.CFMLReferenceContributor"/>
+
+        <!-- Gutter Line Marker & Inlay hints for function usage count -->
+        <codeInsight.lineMarkerProvider
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLFunctionUsageLineMarkerProvider"/>
+        <codeInsight.declarativeInlayProvider
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLFunctionUsageInlayHintsProvider"
+                isEnabledByDefault="true"
+                group="CODE_VISION_GROUP"
+                providerId="cfml.function.usages"
+                bundle="messages.CFMLBundle"
+                nameKey="inlay.cfml.function.usages"/>
+
         <!-- LSP server implementation to add support for in-line docs and formatting commands -->
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />
 
