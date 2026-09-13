@@ -57,7 +57,7 @@ object CFMLModelParser
             .minByOrNull { it.range.length }
     }
 
-    private fun isInsideRanges(offset: Int, ranges: List<TextRange>): Boolean
+    fun isInsideRanges(offset: Int, ranges: List<TextRange>): Boolean
     {
         for (range in ranges)
         {
@@ -66,28 +66,28 @@ object CFMLModelParser
         return false
     }
 
-    private fun findCommentRanges(text: String): List<TextRange>
+    fun findCommentRanges(text: String): List<TextRange>
     {
         val ranges = mutableListOf<TextRange>()
         var i = 0
         val len = text.length
         while (i < len) {
             // CFML tag comments: <!--- ... --->
-            if (i + 4 < len && text.startsWith("<!---", i))
+            if (text.startsWith("<!---", i))
             {
                 val start = i
                 var depth = 1
                 i += 5
                 while (i < len && depth > 0) {
-                    if (i + 4 < len && text.startsWith("<!---", i))
+                    if (text.startsWith("<!---", i))
                     {
                         depth++
                         i += 5
                     }
-                    else if (i + 4 < len && text.startsWith("--->", i))
+                    else if (text.startsWith("--->", i))
                     {
                         depth--
-                        i += 5
+                        i += 4
                         if (depth == 0)
                         {
                             ranges.add(TextRange(start, i))
@@ -102,7 +102,7 @@ object CFMLModelParser
                 continue
             }
             // HTML comments: <!-- ... -->
-            if (i + 3 < len && text.startsWith("<!--", i))
+            if (text.startsWith("<!--", i))
             {
                 val start = i
                 val end = text.indexOf("-->", i + 4)

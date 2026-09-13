@@ -125,6 +125,14 @@
                 providerId="cfml.function.usages"
                 bundle="messages.CFMLBundle"
                 nameKey="inlay.cfml.function.usages"/>
+        <codeInsight.declarativeInlayProvider
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLComponentDotPathInlayHintsProvider"
+                isEnabledByDefault="true"
+                group="CODE_VISION_GROUP"
+                providerId="cfml.component.dotpath"
+                bundle="messages.CFMLBundle"
+                nameKey="inlay.cfml.component.dotPath"/>
 
         <!-- LSP server implementation to add support for in-line docs and formatting commands -->
         <platform.lsp.integrationProvider implementation="com.quetwo.intellilucee.lsp.CFMLLspIntegrationProvider" />

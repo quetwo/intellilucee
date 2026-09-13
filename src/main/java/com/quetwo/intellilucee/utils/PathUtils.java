@@ -397,13 +397,73 @@ public class PathUtils
         }
         try
         {
-            return PathToDotNotation(file.toNioPath());
+            String result = PathToDotNotation(file.toNioPath());
+            if (result != null)
+            {
+                return result;
+            }
         }
-        catch (UnsupportedOperationException e)
+        catch (UnsupportedOperationException | IllegalArgumentException ignored)
         {
-            String filePath = file.getPath();
-            return PathToDotNotation(filePath);
         }
+
+        VirtualFile current = file.isDirectory() ? file : file.getParent();
+        VirtualFile appFile = null;
+        while (current != null)
+        {
+            VirtualFile cfcChild = current.findChild("Application.cfc");
+            if (cfcChild != null && !cfcChild.isDirectory())
+            {
+                appFile = cfcChild;
+                break;
+            }
+            VirtualFile cfmChild = current.findChild("Application.cfm");
+            if (cfmChild != null && !cfmChild.isDirectory())
+            {
+                appFile = cfmChild;
+                break;
+            }
+            current = current.getParent();
+        }
+
+        if (appFile == null)
+        {
+            return null;
+        }
+
+        VirtualFile baseDir = appFile.getParent();
+        if (baseDir == null)
+        {
+            return null;
+        }
+
+        String basePath = baseDir.getPath();
+        String filePath = file.getPath();
+
+        if (!filePath.startsWith(basePath))
+        {
+            return null;
+        }
+
+        String relPath = filePath.substring(basePath.length());
+        while (relPath.startsWith("/"))
+        {
+            relPath = relPath.substring(1);
+        }
+
+        int lastDot = relPath.lastIndexOf('.');
+        int lastSlash = relPath.lastIndexOf('/');
+        if (lastDot > lastSlash)
+        {
+            relPath = relPath.substring(0, lastDot);
+        }
+
+        if (relPath.isEmpty())
+        {
+            return "";
+        }
+
+        return relPath.replace('/', '.');
     }
 
     @Nullable
