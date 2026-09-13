@@ -53,7 +53,7 @@ object CFMLPsiUtil {
                 decl?.let { getFunctionElement(file, it) }
             }
             is com.quetwo.intellilucee.model.CFMLVariableUsage -> {
-                val decl = model.findVariableDeclaration(symbol.name, offset)
+                val decl = model.findVariableDeclaration(symbol.fullName ?: symbol.name, offset)
                 decl?.let { getVariableElement(file, it) }
             }
             is CFMLFunctionDeclaration -> getFunctionElement(file, symbol)

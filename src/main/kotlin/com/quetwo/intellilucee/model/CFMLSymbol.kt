@@ -32,9 +32,15 @@ data class CFMLVariableDeclaration(
 
 data class CFMLVariableUsage(
     override val name: String,
+    val nameRange: TextRange,
     override val range: TextRange,
+    val fullName: String? = null,
     val enclosingFunction: CFMLFunctionDeclaration?
 ) : CFMLSymbol
+{
+    constructor(name: String, range: TextRange, enclosingFunction: CFMLFunctionDeclaration?) :
+            this(name, range, range, name, enclosingFunction)
+}
 
 class CFMLDocumentModel(
     val functions: List<CFMLFunctionDeclaration>,
@@ -57,27 +63,79 @@ class CFMLDocumentModel(
         return functionCalls.count { it.name.equals(functionDecl.name, ignoreCase = true) }
     }
 
+    fun findEnclosingFunctionHierarchy(offset: Int): List<CFMLFunctionDeclaration>
+    {
+        return functions
+            .filter { func ->
+                func.bodyRange?.containsOffset(offset) == true || func.range.containsOffset(offset)
+            }
+            .sortedBy { it.range.length }
+    }
+
+    fun findEnclosingFunction(offset: Int): CFMLFunctionDeclaration?
+    {
+        return findEnclosingFunctionHierarchy(offset).firstOrNull()
+    }
+
     fun findVariableDeclaration(name: String, offset: Int): CFMLVariableDeclaration?
     {
         val bareName = cleanVariableName(name)
-        val enclosingFunc = findEnclosingFunction(offset)
-        if (enclosingFunc != null)
+        val lowerName = name.lowercase()
+        val isExplicitArguments = lowerName.startsWith("arguments.")
+        val isExplicitLocal = lowerName.startsWith("local.")
+        val isExplicitVariables = lowerName.startsWith("variables.")
+
+        val enclosingFunctions = findEnclosingFunctionHierarchy(offset)
+
+        if (enclosingFunctions.isNotEmpty())
         {
-            // First search inside local variables / parameters of this function
-            val localDecl = variableDeclarations.firstOrNull {
-                it.enclosingFunction == enclosingFunc && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
-            }
-            if (localDecl != null)
+            for (enclosingFunc in enclosingFunctions)
             {
-                return localDecl
+                if (isExplicitArguments)
+                {
+                    val paramDecl = variableDeclarations.firstOrNull {
+                        it.enclosingFunction == enclosingFunc &&
+                                it.isLocal &&
+                                (enclosingFunc.parameters.any { p -> p.name.equals(bareName, ignoreCase = true) } ||
+                                 cleanVariableName(it.name).equals(bareName, ignoreCase = true))
+                    }
+                    if (paramDecl != null) return paramDecl
+                }
+                else if (isExplicitLocal)
+                {
+                    val localDecl = variableDeclarations.firstOrNull {
+                        it.enclosingFunction == enclosingFunc &&
+                                it.isLocal &&
+                                cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+                    }
+                    if (localDecl != null) return localDecl
+                }
+                else if (isExplicitVariables)
+                {
+                    val fileDecl = variableDeclarations.firstOrNull {
+                        it.enclosingFunction == null && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+                    }
+                    if (fileDecl != null) return fileDecl
+                }
+                else
+                {
+                    val localDecl = variableDeclarations.firstOrNull {
+                        it.enclosingFunction == enclosingFunc &&
+                                cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+                    }
+                    if (localDecl != null) return localDecl
+                }
             }
         }
-        // Then search in file-level variable declarations
-        return variableDeclarations.firstOrNull {
-            it.enclosingFunction == null && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
-        } ?: variableDeclarations.firstOrNull {
-            cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+
+        if (!isExplicitLocal && !isExplicitArguments)
+        {
+            return variableDeclarations.firstOrNull {
+                it.enclosingFunction == null && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+            }
         }
+
+        return null
     }
 
     fun findVariableUsages(decl: CFMLVariableDeclaration): List<CFMLVariableUsage>
@@ -100,13 +158,6 @@ class CFMLDocumentModel(
         }
     }
 
-    fun findEnclosingFunction(offset: Int): CFMLFunctionDeclaration?
-    {
-        return functions.firstOrNull { func ->
-            func.bodyRange?.containsOffset(offset) == true || func.range.containsOffset(offset)
-        }
-    }
-
     fun findSymbolAt(offset: Int): CFMLSymbol?
     {
         // Look in function declarations
@@ -117,7 +168,7 @@ class CFMLDocumentModel(
         // Look in variable declarations
         for (v in variableDeclarations)
         {
-            if (v.nameRange.containsOffset(offset)) return v
+            if (v.nameRange.containsOffset(offset) || v.range.containsOffset(offset)) return v
         }
         // Look in function calls
         for (call in functionCalls)
@@ -127,7 +178,7 @@ class CFMLDocumentModel(
         // Look in variable usages
         for (v in variableUsages)
         {
-            if (v.range.containsOffset(offset)) return v
+            if (v.nameRange.containsOffset(offset) || v.range.containsOffset(offset)) return v
         }
         return null
     }

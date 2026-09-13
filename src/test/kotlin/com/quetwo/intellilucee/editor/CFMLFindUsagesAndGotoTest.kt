@@ -549,4 +549,335 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertNotNull("Should have comment token", commentToken)
         assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.COMMENT, commentToken!!.second)
     }
+
+    @Test
+    fun testGotoLocalVariableWithinSameFunctionScript() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function compute() {
+                    var discount = 0.15;
+                    var total = 100 * (1 - disc<caret>ount);
+                    return total;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull("Targets should not be null", targets)
+        assertEquals(1, targets!!.size)
+        assertTrue("Target should be CFMLVariableElement", targets[0] is CFMLVariableElement)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("discount", varElem.name)
+        assertTrue("Should be local variable", varElem.variableDecl.isLocal)
+        assertEquals("compute", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableMultiVarScript() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function calculate() {
+                    var a = "first, item", b = 20, c;
+                    return <caret>b + 5;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("b", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("calculate", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableScopedLocal() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function run() {
+                    local.status = "ACTIVE";
+                    writeOutput(loc<caret>al.status);
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("status", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("run", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoFunctionArgumentFromArgumentsScope() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function greet(required string name, numeric age = 30) {
+                    writeOutput("Hello " & arguments.na<caret>me);
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("name", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("greet", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableSeparateFunctionsSameName() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function funcA() {
+                    var value = 100;
+                    return value;
+                }
+                
+                function funcB() {
+                    var value = 200;
+                    return val<caret>ue;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("value", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("funcB", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableShadowsFileVariable() {
+        val file = myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfset count = 999>
+            
+            <cffunction name="doCount">
+                <cfset var count = 10>
+                <cfreturn cou<caret>nt + 1>
+            </cffunction>
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("count", varElem.name)
+        assertTrue("Should resolve to local count in doCount function", varElem.variableDecl.isLocal)
+        assertEquals("doCount", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariablePlainAssignmentInFunction() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function process() {
+                    itemsProcessed = 0;
+                    itemsProcessed = itemsProcessed + 1;
+                    return itemsProce<caret>ssed;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("itemsProcessed", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("process", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableForLoopInFunction() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function iterate(items) {
+                    for (item in items) {
+                        writeOutput(it<caret>em);
+                    }
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("item", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("iterate", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableCatchBlockInFunction() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function safeRun() {
+                    try {
+                        doSomething();
+                    } catch (any err) {
+                        writeLog(e<caret>rr.message);
+                    }
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("err", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("safeRun", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableTagCffunction() {
+        val file = myFixture.configureByText(
+            "test.cfm",
+            """
+            <cffunction name="generateOutput">
+                <cfargument name="prefix" type="string">
+                <cfset var result = prefix & "_output">
+                <cfreturn resu<caret>lt>
+            </cffunction>
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("result", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+        assertEquals("generateOutput", varElem.variableDecl.enclosingFunction?.name)
+    }
+
+    @Test
+    fun testGotoLocalVariableClosure() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function runClosure(list) {
+                    var factor = 2;
+                    return list.map(function(num) {
+                        var doubled = num * factor;
+                        return doub<caret>led;
+                    });
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gotoHandler = CFMLGotoDeclarationHandler()
+        val targets = gotoHandler.getGotoDeclarationTargets(
+            file.findElementAt(myFixture.caretOffset),
+            myFixture.caretOffset,
+            myFixture.editor
+        )
+
+        assertNotNull(targets)
+        assertEquals(1, targets!!.size)
+        val varElem = targets[0] as CFMLVariableElement
+        assertEquals("doubled", varElem.name)
+        assertTrue(varElem.variableDecl.isLocal)
+    }
 }

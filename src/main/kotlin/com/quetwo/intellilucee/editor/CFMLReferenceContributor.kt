@@ -1,5 +1,6 @@
 package com.quetwo.intellilucee.editor
 
+import com.intellij.openapi.util.TextRange
 import com.intellij.patterns.PlatformPatterns
 import com.intellij.psi.*
 import com.intellij.util.ProcessingContext
@@ -41,9 +42,19 @@ class CFMLReferenceContributor : PsiReferenceContributor()
                     // Find variable usages within this element
                     for (usage in model.variableUsages)
                     {
-                        if (elementRange.contains(usage.range))
+                        if (elementRange.contains(usage.nameRange))
+                        {
+                            val relativeRange = usage.nameRange.shiftRight(-elementRange.startOffset)
+                            refs.add(CFMLPsiReference(element, relativeRange))
+                        }
+                        else if (elementRange.contains(usage.range))
                         {
                             val relativeRange = usage.range.shiftRight(-elementRange.startOffset)
+                            refs.add(CFMLPsiReference(element, relativeRange))
+                        }
+                        else if (usage.range.contains(elementRange))
+                        {
+                            val relativeRange = TextRange(0, elementRange.length)
                             refs.add(CFMLPsiReference(element, relativeRange))
                         }
                     }
