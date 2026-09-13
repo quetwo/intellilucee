@@ -181,4 +181,249 @@ class CFMLTypedHandlerTest : BasePlatformTestCase() {
         myFixture.type('>')
         myFixture.checkResult("<cfoutput><caret></cfoutput>")
     }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionSimple() {
+        myFixture.configureByText("test.cfs", "function test()<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("function test(){<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionWithSpaces() {
+        myFixture.configureByText("test.cfs", "function test() <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("function test() {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionWithModifiersAndParams() {
+        myFixture.configureByText("test.cfc", "public void function doWork(numeric a, string b = \"hello\") <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("public void function doWork(numeric a, string b = \"hello\") {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInAnonymousFunction() {
+        myFixture.configureByText("test.cfs", "var fn = function(x, y) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("var fn = function(x, y) {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionMultiline() {
+        myFixture.configureByText("test.cfs", "function test()\n<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("function test()\n{<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionWithAttributes() {
+        myFixture.configureByText("test.cfc", "remote any function getData() output=\"false\" <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("remote any function getData() output=\"false\" {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionDisabledWhenSettingOff() {
+        val globalSettings = CFMLGlobalSettings.getInstance()
+        val original = globalSettings.state.autoCloseTags
+        try {
+            globalSettings.state.autoCloseTags = false
+            myFixture.configureByText("test.cfs", "function test() <caret>")
+            myFixture.type('{')
+            myFixture.checkResult("function test() {<caret>")
+        } finally {
+            globalSettings.state.autoCloseTags = original
+        }
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInIfStatement() {
+        myFixture.configureByText("test.cfs", "if (x == 1) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("if (x == 1) {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInIfStatementMultiline() {
+        myFixture.configureByText("test.cfs", "if (x == 1)\n<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("if (x == 1)\n{<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInElseStatement() {
+        myFixture.configureByText("test.cfs", "if (x == 1) { doSomething(); } else <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("if (x == 1) { doSomething(); } else {<caret>}")
+
+        myFixture.configureByText("test_multiline.cfs", "else\n<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("else\n{<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInElseIfStatement() {
+        myFixture.configureByText("test.cfs", "if (x == 1) { } else if (x == 2) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("if (x == 1) { } else if (x == 2) {<caret>}")
+
+        myFixture.configureByText("test_multiline.cfs", "else if (x == 2)\n<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("else if (x == 2)\n{<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInElseifKeywordStatement() {
+        myFixture.configureByText("test.cfs", "if (x == 1) { } elseif (x == 2) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("if (x == 1) { } elseif (x == 2) {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInForLoop() {
+        myFixture.configureByText("test.cfs", "for (var i = 1; i <= 10; i++) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("for (var i = 1; i <= 10; i++) {<caret>}")
+
+        myFixture.configureByText("test_in.cfs", "for (var item in items) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("for (var item in items) {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInWhileAndDoLoops() {
+        myFixture.configureByText("test.cfs", "while (condition) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("while (condition) {<caret>}")
+
+        myFixture.configureByText("test_do.cfs", "do <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("do {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInSwitchAndCase() {
+        myFixture.configureByText("test.cfs", "switch (val) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("switch (val) {<caret>}")
+
+        myFixture.configureByText("test_case_num.cfs", "case 1: <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("case 1: {<caret>}")
+
+        myFixture.configureByText("test_case_str.cfs", "case \"hello\": <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("case \"hello\": {<caret>}")
+
+        myFixture.configureByText("test_case_nobp.cfs", "case 1 <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("case 1 {<caret>}")
+
+        myFixture.configureByText("test_default.cfs", "default: <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("default: {<caret>}")
+
+        myFixture.configureByText("test_default_nobp.cfs", "default <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("default {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInTryCatchFinally() {
+        myFixture.configureByText("test.cfs", "try <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("try {<caret>}")
+
+        myFixture.configureByText("test_catch.cfs", "catch (any e) <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("catch (any e) {<caret>}")
+
+        myFixture.configureByText("test_finally.cfs", "finally <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("finally {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInOtherTags() {
+        myFixture.configureByText("test.cfc", "component <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("component {<caret>}")
+
+        myFixture.configureByText("test_comp_attrs.cfc", "component extends=\"Base\" <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("component extends=\"Base\" {<caret>}")
+
+        myFixture.configureByText("test_interface.cfc", "interface <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("interface {<caret>}")
+
+        myFixture.configureByText("test_lock.cfs", "lock timeout=\"10\" <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("lock timeout=\"10\" {<caret>}")
+
+        myFixture.configureByText("test_transaction.cfs", "transaction <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("transaction {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInArrowFunction() {
+        myFixture.configureByText("test.cfs", "(x, y) => <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("(x, y) => {<caret>}")
+    }
+
+    @Test
+    fun testNonBlockCurlyBraceNotAutoClosed() {
+        myFixture.configureByText("test.cfs", "var s = <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("var s = {<caret>")
+
+        myFixture.configureByText("test2.cfs", "data = <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("data = {<caret>")
+
+        myFixture.configureByText("test3.cfs", "return <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("return {<caret>")
+
+        myFixture.configureByText("test4.cfs", "callFunc(<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("callFunc({<caret>")
+
+        myFixture.configureByText("test5.cfs", "var arr = [<caret>")
+        myFixture.type('{')
+        myFixture.checkResult("var arr = [{<caret>")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceDoesNotDuplicateExisting() {
+        myFixture.configureByText("test.cfs", "function test() <caret>}")
+        myFixture.type('{')
+        myFixture.checkResult("function test() {<caret>}")
+
+        myFixture.configureByText("test_if.cfs", "if (x == 1) <caret>}")
+        myFixture.type('{')
+        myFixture.checkResult("if (x == 1) {<caret>}")
+    }
+
+    @Test
+    fun testAutoCloseCurlyBraceInFunctionInsideCfscriptTag() {
+        myFixture.configureByText("test.cfm", "<cfscript>\nfunction test() <caret>\n</cfscript>")
+        myFixture.type('{')
+        myFixture.checkResult("<cfscript>\nfunction test() {<caret>}\n</cfscript>")
+
+        myFixture.configureByText("test_if_tag.cfm", "<cfscript>\nif (isValid) <caret>\n</cfscript>")
+        myFixture.type('{')
+        myFixture.checkResult("<cfscript>\nif (isValid) {<caret>}\n</cfscript>")
+    }
+
+    @Test
+    fun testCurlyBraceAfterCommentedFunctionNotAutoClosed() {
+        myFixture.configureByText("test.cfs", "/* function foo() */ var s = <caret>")
+        myFixture.type('{')
+        myFixture.checkResult("/* function foo() */ var s = {<caret>")
+    }
 }
