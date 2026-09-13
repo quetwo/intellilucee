@@ -1,5 +1,6 @@
 package com.quetwo.intellilucee.utils;
 
+import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.Nullable;
 
@@ -409,6 +410,219 @@ public class PathUtils
     public static String PathToDotNotation(@Nullable String path)
     {
         return path != null ? PathToDotNotation(Paths.get(path)) : null;
+    }
+
+    /**
+     * Converts a ColdFusion Component (CFC) dot notation string into a Path relative to the closest Application file.
+     * Finds the closest Application.cfc or Application.cfm to the searchRoot, and appends the dot notation segments
+     * as directories, with the last item having the .cfc extension.
+     *
+     * @param searchRoot the root path to search from
+     * @param dotNotation the component dot notation (e.g. "models.services.UserService")
+     * @return Path to the component file, or null if searchRoot, dotNotation, or Application file cannot be resolved
+     */
+    @Nullable
+    public static Path DotNotationToPath(@Nullable Path searchRoot, @Nullable String dotNotation)
+    {
+        if (searchRoot == null || dotNotation == null)
+        {
+            return null;
+        }
+
+        String notation = dotNotation.trim();
+        if (notation.isEmpty())
+        {
+            return null;
+        }
+
+        Path appFile = findClosestApplicationFile(searchRoot);
+        if (appFile == null)
+        {
+            return null;
+        }
+
+        Path baseDir = appFile.getParent();
+        if (baseDir == null)
+        {
+            return null;
+        }
+
+        if (notation.toLowerCase().endsWith(".cfc"))
+        {
+            notation = notation.substring(0, notation.length() - 4);
+        }
+
+        String[] parts = notation.split("\\.");
+        List<String> segments = new ArrayList<>();
+        for (String part : parts)
+        {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty())
+            {
+                segments.add(trimmed);
+            }
+        }
+
+        if (segments.isEmpty())
+        {
+            return null;
+        }
+
+        Path result = baseDir;
+        for (int i = 0; i < segments.size() - 1; i++)
+        {
+            result = result.resolve(segments.get(i));
+        }
+
+        String fileName = segments.get(segments.size() - 1);
+        if (!fileName.toLowerCase().endsWith(".cfc"))
+        {
+            fileName += ".cfc";
+        }
+        result = result.resolve(fileName);
+
+        return result.normalize();
+    }
+
+    @Nullable
+    public static Path DotNotationToPath(@Nullable File searchRoot, @Nullable String dotNotation)
+    {
+        return searchRoot != null ? DotNotationToPath(searchRoot.toPath(), dotNotation) : null;
+    }
+
+    @Nullable
+    public static Path DotNotationToPath(@Nullable VirtualFile searchRoot, @Nullable String dotNotation)
+    {
+        if (searchRoot == null)
+        {
+            return null;
+        }
+        try
+        {
+            return DotNotationToPath(searchRoot.toNioPath(), dotNotation);
+        }
+        catch (UnsupportedOperationException e)
+        {
+            return DotNotationToPath(Paths.get(searchRoot.getPath()), dotNotation);
+        }
+    }
+
+    @Nullable
+    public static Path DotNotationToPath(@Nullable String searchRoot, @Nullable String dotNotation)
+    {
+        return searchRoot != null ? DotNotationToPath(Paths.get(searchRoot), dotNotation) : null;
+    }
+
+    /**
+     * Converts a ColdFusion Component (CFC) dot notation string into a File relative to the closest Application file.
+     *
+     * @param searchRoot the root path to search from
+     * @param dotNotation the component dot notation (e.g. "models.services.UserService")
+     * @return File of the component, or null if searchRoot, dotNotation, or Application file cannot be resolved
+     */
+    @Nullable
+    public static File DotNotationToFile(@Nullable Path searchRoot, @Nullable String dotNotation)
+    {
+        Path path = DotNotationToPath(searchRoot, dotNotation);
+        return path != null ? path.toFile() : null;
+    }
+
+    @Nullable
+    public static File dotNotationToFile(@Nullable Path searchRoot, @Nullable String dotNotation)
+    {
+        return DotNotationToFile(searchRoot, dotNotation);
+    }
+
+    @Nullable
+    public static File DotNotationToFile(@Nullable File searchRoot, @Nullable String dotNotation)
+    {
+        return searchRoot != null ? DotNotationToFile(searchRoot.toPath(), dotNotation) : null;
+    }
+
+    @Nullable
+    public static File DotNotationToFile(@Nullable VirtualFile searchRoot, @Nullable String dotNotation)
+    {
+        Path path = DotNotationToPath(searchRoot, dotNotation);
+        return path != null ? path.toFile() : null;
+    }
+
+    @Nullable
+    public static File DotNotationToFile(@Nullable String searchRoot, @Nullable String dotNotation)
+    {
+        return searchRoot != null ? DotNotationToFile(Paths.get(searchRoot), dotNotation) : null;
+    }
+
+    /**
+     * Converts a ColdFusion Component (CFC) dot notation string into a VirtualFile relative to the closest Application file.
+     *
+     * @param searchRoot the root path to search from
+     * @param dotNotation the component dot notation (e.g. "models.services.UserService")
+     * @return VirtualFile of the component, or null if searchRoot, dotNotation, or Application file cannot be resolved
+     */
+    @Nullable
+    public static VirtualFile DotNotationToVirtualFile(@Nullable Path searchRoot, @Nullable String dotNotation)
+    {
+        Path path = DotNotationToPath(searchRoot, dotNotation);
+        if (path == null)
+        {
+            return null;
+        }
+        try
+        {
+            LocalFileSystem lfs = LocalFileSystem.getInstance();
+            if (lfs != null)
+            {
+                VirtualFile vf = lfs.findFileByNioFile(path);
+                if (vf == null)
+                {
+                    vf = lfs.refreshAndFindFileByNioFile(path);
+                }
+                return vf;
+            }
+        }
+        catch (Throwable ignored)
+        {
+        }
+        return null;
+    }
+
+    @Nullable
+    public static VirtualFile DotNotationToVirtualFile(@Nullable File searchRoot, @Nullable String dotNotation)
+    {
+        return searchRoot != null ? DotNotationToVirtualFile(searchRoot.toPath(), dotNotation) : null;
+    }
+
+    @Nullable
+    public static VirtualFile DotNotationToVirtualFile(@Nullable VirtualFile searchRoot, @Nullable String dotNotation)
+    {
+        Path path = DotNotationToPath(searchRoot, dotNotation);
+        if (path == null)
+        {
+            return null;
+        }
+        try
+        {
+            LocalFileSystem lfs = LocalFileSystem.getInstance();
+            if (lfs != null)
+            {
+                VirtualFile vf = lfs.findFileByNioFile(path);
+                if (vf == null)
+                {
+                    vf = lfs.refreshAndFindFileByNioFile(path);
+                }
+                return vf;
+            }
+        }
+        catch (Throwable ignored)
+        {
+        }
+        return null;
+    }
+
+    @Nullable
+    public static VirtualFile DotNotationToVirtualFile(@Nullable String searchRoot, @Nullable String dotNotation)
+    {
+        return searchRoot != null ? DotNotationToVirtualFile(Paths.get(searchRoot), dotNotation) : null;
     }
 
 }

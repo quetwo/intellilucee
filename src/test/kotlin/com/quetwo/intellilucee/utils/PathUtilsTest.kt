@@ -297,4 +297,104 @@ class PathUtilsTest
         assertNull(PathUtils.PathToDotNotation(null as String?))
         assertNull(PathUtils.PathToDotNotation(tempFolder.root.toPath().resolve("non_existent.cfc")))
     }
+
+    @Test
+    fun testDotNotationToPath_RootComponent()
+    {
+        val root = tempFolder.newFolder("dot_to_path_root").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+
+        val expected = root.resolve("UserService.cfc")
+        val result = PathUtils.DotNotationToPath(root, "UserService")
+        assertNotNull(result)
+        assertEquals(expected.toAbsolutePath().normalize(), result!!.toAbsolutePath().normalize())
+    }
+
+    @Test
+    fun testDotNotationToPath_NestedComponents()
+    {
+        val root = tempFolder.newFolder("dot_to_path_nested").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+
+        val expected = root.resolve("models").resolve("services").resolve("auth").resolve("AuthManager.cfc")
+        val result = PathUtils.DotNotationToPath(root, "models.services.auth.AuthManager")
+        assertNotNull(result)
+        assertEquals(expected.toAbsolutePath().normalize(), result!!.toAbsolutePath().normalize())
+    }
+
+    @Test
+    fun testDotNotationToPath_WithCfcExtensionInNotation()
+    {
+        val root = tempFolder.newFolder("dot_to_path_ext").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+
+        val expected = root.resolve("models").resolve("services").resolve("OrderService.cfc")
+        val result = PathUtils.DotNotationToPath(root, "models.services.OrderService.cfc")
+        assertNotNull(result)
+        assertEquals(expected.toAbsolutePath().normalize(), result!!.toAbsolutePath().normalize())
+    }
+
+    @Test
+    fun testDotNotationToFile_AndOverloads()
+    {
+        val root = tempFolder.newFolder("dot_to_file").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+
+        val expectedFile = root.resolve("services").resolve("UserService.cfc").toFile()
+
+        val fromPath = PathUtils.DotNotationToFile(root, "services.UserService")
+        assertNotNull(fromPath)
+        assertEquals(expectedFile.absolutePath, fromPath!!.absolutePath)
+
+        val fromFile = PathUtils.DotNotationToFile(root.toFile(), "services.UserService")
+        assertNotNull(fromFile)
+        assertEquals(expectedFile.absolutePath, fromFile!!.absolutePath)
+
+        val fromString = PathUtils.DotNotationToFile(root.toString(), "services.UserService")
+        assertNotNull(fromString)
+        assertEquals(expectedFile.absolutePath, fromString!!.absolutePath)
+
+        val fromCamel = PathUtils.dotNotationToFile(root, "services.UserService")
+        assertNotNull(fromCamel)
+        assertEquals(expectedFile.absolutePath, fromCamel!!.absolutePath)
+    }
+
+    @Test
+    fun testDotNotationToPath_NoApplicationFile()
+    {
+        val root = tempFolder.newFolder("dot_to_path_none").toPath()
+
+        val result = PathUtils.DotNotationToPath(root, "services.UserService")
+        assertNull(result)
+    }
+
+    @Test
+    fun testDotNotationToPath_NullAndEmptyInputs()
+    {
+        val root = tempFolder.newFolder("dot_to_path_nulls").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+
+        assertNull(PathUtils.DotNotationToPath(null as java.nio.file.Path?, "UserService"))
+        assertNull(PathUtils.DotNotationToPath(root, null))
+        assertNull(PathUtils.DotNotationToPath(root, ""))
+        assertNull(PathUtils.DotNotationToPath(root, "   "))
+        assertNull(PathUtils.DotNotationToFile(null as java.nio.file.Path?, "UserService"))
+        assertNull(PathUtils.DotNotationToFile(root, null))
+    }
+
+    @Test
+    fun testDotNotation_RoundTrip()
+    {
+        val root = tempFolder.newFolder("dot_roundtrip").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+        val subDir = Files.createDirectories(root.resolve("models").resolve("services"))
+        val serviceFile = Files.createFile(subDir.resolve("UserService.cfc"))
+
+        val notation = PathUtils.PathToDotNotation(serviceFile)
+        assertEquals("models.services.UserService", notation)
+
+        val resolvedPath = PathUtils.DotNotationToPath(root, notation)
+        assertNotNull(resolvedPath)
+        assertEquals(serviceFile.toRealPath(), resolvedPath!!.toRealPath())
+    }
 }
