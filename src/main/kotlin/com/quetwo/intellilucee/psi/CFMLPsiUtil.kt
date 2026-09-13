@@ -15,8 +15,16 @@ object CFMLPsiUtil {
     fun isCFMLFile(file: PsiFile?): Boolean {
         if (file == null) return false
         if (file.language == CFMLLanguage.INSTANCE) return true
-        val ext = file.virtualFile?.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
+        val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
+        val ext = vFile.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
         return ext in setOf("cfm", "cfc", "cfs", "cfml")
+    }
+
+    fun isCFCFile(file: PsiFile?): Boolean {
+        if (file == null) return false
+        val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
+        val ext = vFile.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
+        return ext == "cfc"
     }
 
     fun getModel(file: PsiFile): CFMLDocumentModel {
