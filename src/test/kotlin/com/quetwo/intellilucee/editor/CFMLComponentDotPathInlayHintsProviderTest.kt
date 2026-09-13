@@ -90,12 +90,13 @@ class CFMLComponentDotPathInlayHintsProviderTest : BasePlatformTestCase()
         }
 
         (collector as SharedBypassCollector).collectFromElement(file, mockSink)
-        assertEquals("Should emit exactly 1 component dot path hint", 1, presentations.size)
+        assertEquals(1, presentations.size)
 
         val (pos, text) = presentations[0]
         assertTrue("Position should be InlineInlayPosition", pos is InlineInlayPosition)
-        assertEquals(" (models.services.UserService)", text)
-        assertEquals(9, (pos as InlineInlayPosition).offset)
+        assertEquals("Path: (models.services.UserService)", text)
+        val expectedOffset = file.text.indexOf("{") - 1 // before curly brace and space
+        assertEquals(expectedOffset, (pos as InlineInlayPosition).offset)
     }
 
     @Test
@@ -142,8 +143,9 @@ class CFMLComponentDotPathInlayHintsProviderTest : BasePlatformTestCase()
 
         (collector as SharedBypassCollector).collectFromElement(file, mockSink)
         assertEquals(1, presentations.size)
-        assertEquals(" (models.OrderService)", presentations[0].second)
-        assertEquals(12, (presentations[0].first as InlineInlayPosition).offset)
+        assertEquals("Path: (models.OrderService)", presentations[0].second)
+        val expectedOffset = file.text.indexOf(">")
+        assertEquals(expectedOffset, (presentations[0].first as InlineInlayPosition).offset)
     }
 
     @Test
@@ -189,8 +191,9 @@ class CFMLComponentDotPathInlayHintsProviderTest : BasePlatformTestCase()
 
         (collector as SharedBypassCollector).collectFromElement(file, mockSink)
         assertEquals(1, presentations.size)
-        assertEquals(" (Utility)", presentations[0].second)
-        assertEquals(0, (presentations[0].first as InlineInlayPosition).offset)
+        assertEquals("Path: (Utility)", presentations[0].second)
+        val expectedOffset = file.text.indexOfAny(charArrayOf('\n', '\r'))
+        assertEquals(expectedOffset, (presentations[0].first as InlineInlayPosition).offset)
     }
 
     @Test
@@ -213,7 +216,7 @@ class CFMLComponentDotPathInlayHintsProviderTest : BasePlatformTestCase()
         """.trimIndent()
 
         val offset = CFMLComponentDotPathInlayHintsProvider().findComponentOffset(code)
-        val expectedOffset = code.indexOf("component accessors") + "component".length
+        val expectedOffset = code.indexOf("{") - 1
         assertEquals(expectedOffset, offset)
     }
 
@@ -227,7 +230,7 @@ class CFMLComponentDotPathInlayHintsProviderTest : BasePlatformTestCase()
         """.trimIndent()
 
         val offset = CFMLComponentDotPathInlayHintsProvider().findComponentOffset(code)
-        val expectedOffset = code.indexOf("<cfcomponent displayname") + "<cfcomponent".length
+        val expectedOffset = code.indexOf("<cfcomponent displayname") + "<cfcomponent displayname=\"test\"".length
         assertEquals(expectedOffset, offset)
     }
 
@@ -237,11 +240,11 @@ class CFMLComponentDotPathInlayHintsProviderTest : BasePlatformTestCase()
         val provider = CFMLComponentDotPathInlayHintsProvider()
         val abstractCode = "abstract component extends=\"Base\" {}"
         val abstractOffset = provider.findComponentOffset(abstractCode)
-        assertEquals("abstract component".length, abstractOffset)
+        assertEquals(abstractCode.indexOf("{") - 1, abstractOffset)
 
         val finalCode = "final component {}"
         val finalOffset = provider.findComponentOffset(finalCode)
-        assertEquals("final component".length, finalOffset)
+        assertEquals(finalCode.indexOf("{") - 1, finalOffset)
     }
 
     @Test

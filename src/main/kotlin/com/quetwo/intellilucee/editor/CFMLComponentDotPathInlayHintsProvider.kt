@@ -24,6 +24,11 @@ class CFMLComponentDotPathInlayHintsProvider : InlayHintsProvider
     {
         if (!CFMLPsiUtil.isCFCFile(file)) return null
 
+        if ((file.name.lowercase() == "application.cfc") || (file.name.lowercase() == "application.cfm"))
+        {
+            return null;
+        }
+
         return object : SharedBypassCollector
         {
             override fun collectFromElement(element: PsiElement, sink: InlayTreeSink)
@@ -50,28 +55,69 @@ class CFMLComponentDotPathInlayHintsProvider : InlayHintsProvider
     {
         val commentRanges = CFMLModelParser.findCommentRanges(text)
 
-        // 1. Tag component: <cfcomponent
+        // 1. Tag component: <cfcomponent ... >
         val tagMatcher = TAG_COMPONENT_PATTERN.matcher(text)
         while (tagMatcher.find())
         {
             val start = tagMatcher.start()
             if (!CFMLModelParser.isInsideRanges(start, commentRanges))
             {
-                return tagMatcher.end()
+                // Find the closing '>' of the <cfcomponent ...> opening tag or end of line
+                var i = tagMatcher.end()
+                while (i < text.length)
+                {
+                    val c = text[i]
+                    if (c == '>')
+                    {
+                        return i // right before '>' or end of tag attributes
+                    }
+                    if (c == '\n' || c == '\r')
+                    {
+                        return i
+                    }
+                    i++
+                }
+                return text.length
             }
         }
 
-        // 2. Script component: component
+        // 2. Script component: component ... {
         val scriptMatcher = SCRIPT_COMPONENT_PATTERN.matcher(text)
         while (scriptMatcher.find())
         {
             val nameStart = scriptMatcher.start(1)
             if (!CFMLModelParser.isInsideRanges(nameStart, commentRanges))
             {
-                return scriptMatcher.end(1)
+                var i = scriptMatcher.end(1)
+                while (i < text.length)
+                {
+                    val c = text[i]
+                    if (c == '{')
+                    {
+                        // Right before the opening curly brace (trim whitespace before '{' if desired, but before '{' is exact)
+                        var beforeBrace = i
+                        while (beforeBrace > scriptMatcher.end(1) && text[beforeBrace - 1].isWhitespace() && text[beforeBrace - 1] != '\n' && text[beforeBrace - 1] != '\r')
+                        {
+                            beforeBrace--
+                        }
+                        return beforeBrace
+                    }
+                    if (c == '\n' || c == '\r')
+                    {
+                        return i
+                    }
+                    i++
+                }
+                return text.length
             }
         }
 
-        return 0
+        // If no component header found, place at end of first line or 0
+        val lineEnd = text.indexOfAny(charArrayOf('\n', '\r'))
+        if (lineEnd >= 0)
+        {
+            return lineEnd
+        }
+        return text.length
     }
 }
