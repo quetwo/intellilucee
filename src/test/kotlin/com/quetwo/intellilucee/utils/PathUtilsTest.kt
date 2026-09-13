@@ -114,4 +114,130 @@ class PathUtilsTest
         assertNotNull(found)
         assertEquals(appCfc.toRealPath(), found!!.toRealPath())
     }
+
+    @Test
+    fun testFindClosestApplicationFileUp_SameDirectory()
+    {
+        val root = tempFolder.newFolder("up_same").toPath()
+        val appCfc = Files.createFile(root.resolve("Application.cfc"))
+        val targetFile = Files.createFile(root.resolve("index.cfm"))
+
+        val foundFromTarget = PathUtils.findClosestApplicationFileFromFile(targetFile)
+        assertNotNull(foundFromTarget)
+        assertEquals(appCfc.toRealPath(), foundFromTarget!!.toRealPath())
+
+        val foundFromDir = PathUtils.findClosestApplicationFileFromFile(root)
+        assertNotNull(foundFromDir)
+        assertEquals(appCfc.toRealPath(), foundFromDir!!.toRealPath())
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_TraverseParent()
+    {
+        val root = tempFolder.newFolder("up_parent").toPath()
+        val appCfc = Files.createFile(root.resolve("Application.cfc"))
+        val subDir = Files.createDirectories(root.resolve("sub").resolve("deep"))
+        val targetFile = Files.createFile(subDir.resolve("detail.cfm"))
+
+        val found = PathUtils.findClosestApplicationFileFromFile(targetFile)
+        assertNotNull(found)
+        assertEquals(appCfc.toRealPath(), found!!.toRealPath())
+
+        val foundFromDir = PathUtils.findClosestApplicationFileFromFile(subDir)
+        assertNotNull(foundFromDir)
+        assertEquals(appCfc.toRealPath(), foundFromDir!!.toRealPath())
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_MultipleLevels_PicksClosestAncestor()
+    {
+        val root = tempFolder.newFolder("up_multi").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+
+        val midDir = Files.createDirectories(root.resolve("module"))
+        val midApp = Files.createFile(midDir.resolve("Application.cfm"))
+
+        val deepDir = Files.createDirectories(midDir.resolve("views"))
+        val targetFile = Files.createFile(deepDir.resolve("view.cfm"))
+
+        val found = PathUtils.findClosestApplicationFileFromFile(targetFile)
+        assertNotNull(found)
+        assertEquals(midApp.toRealPath(), found!!.toRealPath())
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_SameLevel_PrefersCfcOverCfm()
+    {
+        val root = tempFolder.newFolder("up_precedence").toPath()
+        val appCfc = Files.createFile(root.resolve("Application.cfc"))
+        Files.createFile(root.resolve("Application.cfm"))
+        val subDir = Files.createDirectories(root.resolve("sub"))
+        val targetFile = Files.createFile(subDir.resolve("index.cfm"))
+
+        val found = PathUtils.findClosestApplicationFileFromFile(targetFile)
+        assertNotNull(found)
+        assertEquals(appCfc.toRealPath(), found!!.toRealPath())
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_CaseInsensitive()
+    {
+        val root = tempFolder.newFolder("up_case").toPath()
+        val appCfc = Files.createFile(root.resolve("application.cfc"))
+        val subDir = Files.createDirectories(root.resolve("sub"))
+        val targetFile = Files.createFile(subDir.resolve("index.cfm"))
+
+        val found = PathUtils.findClosestApplicationFileFromFile(targetFile)
+        assertNotNull(found)
+        assertEquals(appCfc.toRealPath(), found!!.toRealPath())
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_DirectApplicationFile()
+    {
+        val root = tempFolder.newFolder("up_direct").toPath()
+        val appCfc = Files.createFile(root.resolve("Application.cfc"))
+
+        val found = PathUtils.findClosestApplicationFileFromFile(appCfc)
+        assertNotNull(found)
+        assertEquals(appCfc.toRealPath(), found!!.toRealPath())
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_FileAndStringOverloads()
+    {
+        val root = tempFolder.newFolder("up_overloads").toPath()
+        val appCfc = Files.createFile(root.resolve("Application.cfc"))
+        val subDir = Files.createDirectories(root.resolve("sub"))
+        val target = Files.createFile(subDir.resolve("index.cfm"))
+
+        val foundFile = PathUtils.findClosestApplicationFileFromFile(target.toFile())
+        assertNotNull(foundFile)
+        assertEquals(appCfc.toRealPath(), foundFile!!.toRealPath())
+
+        val foundString = PathUtils.findClosestApplicationFileFromFile(target.toString())
+        assertNotNull(foundString)
+        assertEquals(appCfc.toRealPath(), foundString!!.toRealPath())
+
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_NotFound()
+    {
+        val root = tempFolder.newFolder("up_none").toPath()
+        val subDir = Files.createDirectories(root.resolve("sub"))
+        val target = Files.createFile(subDir.resolve("index.cfm"))
+
+        val found = PathUtils.findClosestApplicationFileFromFile(target)
+        assertNull(found)
+    }
+
+    @Test
+    fun testFindClosestApplicationFileUp_NullOrNonExistent()
+    {
+        assertNull(PathUtils.findClosestApplicationFileFromFile(null as java.nio.file.Path?))
+        assertNull(PathUtils.findClosestApplicationFileFromFile(null as java.io.File?))
+        assertNull(PathUtils.findClosestApplicationFileFromFile(null as String?))
+        assertNull(PathUtils.findClosestApplicationFileFromFile(tempFolder.root.toPath().resolve("non_existent")))
+    }
 }

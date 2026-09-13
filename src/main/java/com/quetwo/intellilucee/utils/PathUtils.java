@@ -3,6 +3,7 @@ package com.quetwo.intellilucee.utils;
 import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -189,10 +190,133 @@ public class PathUtils
         }
     }
 
+    /**
+     * Finds and returns the Path to the closest Application.cfc or Application.cfm file from a given Path, File, or VirtualFile,
+     * traversing up the directory path towards the filesystem root.
+     * In each directory checked, Application.cfc is prioritized over Application.cfm.
+     *
+     * @param path the starting Path
+     * @return Path to the closest Application.cfc or Application.cfm file traversing upwards, or null if not found
+     */
     @Nullable
-    public static Path findApplicationFile(@Nullable Path workspaceRoot)
+    public static Path findClosestApplicationFileFromFile(@Nullable Path path)
     {
-        return findClosestApplicationFile(workspaceRoot);
+        if (path == null)
+        {
+            return null;
+        }
+
+        Path current = path.toAbsolutePath().normalize();
+        if (!Files.exists(current))
+        {
+            return null;
+        }
+
+        Path currentDir;
+        if (Files.isDirectory(current))
+        {
+            currentDir = current;
+        }
+        else
+        {
+            String fileName = current.getFileName() != null ? current.getFileName().toString() : "";
+            if (fileName.equalsIgnoreCase("Application.cfc") || fileName.equalsIgnoreCase("Application.cfm"))
+            {
+                return current;
+            }
+            currentDir = current.getParent();
+        }
+
+        Set<Path> visited = new HashSet<>();
+
+        while (currentDir != null && Files.exists(currentDir))
+        {
+            try
+            {
+                Path realDir = currentDir.toRealPath();
+                if (!visited.add(realDir))
+                {
+                    break;
+                }
+            }
+            catch (IOException e)
+            {
+                if (!visited.add(currentDir))
+                {
+                    break;
+                }
+            }
+
+            Path foundCfc = null;
+            Path foundCfm = null;
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentDir))
+            {
+                for (Path entry : stream)
+                {
+                    if (Files.isRegularFile(entry))
+                    {
+                        String name = entry.getFileName() != null ? entry.getFileName().toString() : "";
+                        if (name.equalsIgnoreCase("Application.cfc"))
+                        {
+                            foundCfc = entry;
+                            break; // cfc has priority over cfm in the same directory
+                        }
+                        else if (name.equalsIgnoreCase("Application.cfm") && foundCfm == null)
+                        {
+                            foundCfm = entry;
+                        }
+                    }
+                }
+            }
+            catch (IOException | SecurityException ignored)
+            {
+                // Skip inaccessible directories
+            }
+
+            if (foundCfc != null)
+            {
+                return foundCfc;
+            }
+            if (foundCfm != null)
+            {
+                return foundCfm;
+            }
+
+            currentDir = currentDir.getParent();
+        }
+
+        return null;
+    }
+
+    @Nullable
+    public static Path findClosestApplicationFileFromFile(@Nullable File file)
+    {
+        return file != null ? findClosestApplicationFileFromFile(file.toPath()) : null;
+    }
+
+    @Nullable
+    public static Path findClosestApplicationFileFromFile(@Nullable VirtualFile file)
+    {
+        if (file == null)
+        {
+            return null;
+        }
+        try
+        {
+            return findClosestApplicationFileFromFile(file.toNioPath());
+        }
+        catch (UnsupportedOperationException e)
+        {
+            String filePath = file.getPath();
+            return findClosestApplicationFileFromFile(filePath);
+        }
+    }
+
+    @Nullable
+    public static Path findClosestApplicationFileFromFile(@Nullable String path)
+    {
+        return path != null ? findClosestApplicationFileFromFile(Paths.get(path)) : null;
     }
 
 
