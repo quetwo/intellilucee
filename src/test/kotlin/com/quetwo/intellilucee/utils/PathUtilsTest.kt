@@ -240,4 +240,61 @@ class PathUtilsTest
         assertNull(PathUtils.findClosestApplicationFileFromFile(null as String?))
         assertNull(PathUtils.findClosestApplicationFileFromFile(tempFolder.root.toPath().resolve("non_existent")))
     }
+
+    @Test
+    fun testPathToDotNotation_RootCfc()
+    {
+        val root = tempFolder.newFolder("dot_root").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+        val serviceCfc = Files.createFile(root.resolve("UserService.cfc"))
+
+        val dotNotation = PathUtils.PathToDotNotation(serviceCfc)
+        assertEquals("UserService", dotNotation)
+    }
+
+    @Test
+    fun testPathToDotNotation_NestedDirectories()
+    {
+        val root = tempFolder.newFolder("dot_nested").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+        val nestedDir = Files.createDirectories(root.resolve("models").resolve("services").resolve("auth"))
+        val cfcFile = Files.createFile(nestedDir.resolve("AuthManager.cfc"))
+
+        val dotNotation = PathUtils.PathToDotNotation(cfcFile)
+        assertEquals("models.services.auth.AuthManager", dotNotation)
+    }
+
+    @Test
+    fun testPathToDotNotation_FileAndStringOverloads()
+    {
+        val root = tempFolder.newFolder("dot_overloads").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+        val nestedDir = Files.createDirectories(root.resolve("services"))
+        val cfcFile = Files.createFile(nestedDir.resolve("OrderService.cfc"))
+
+        val fromFile = PathUtils.PathToDotNotation(cfcFile.toFile())
+        assertEquals("services.OrderService", fromFile)
+
+        val fromString = PathUtils.PathToDotNotation(cfcFile.toString())
+        assertEquals("services.OrderService", fromString)
+    }
+
+    @Test
+    fun testPathToDotNotation_NoApplicationFile()
+    {
+        val root = tempFolder.newFolder("dot_none").toPath()
+        val cfcFile = Files.createFile(root.resolve("Test.cfc"))
+
+        val dotNotation = PathUtils.PathToDotNotation(cfcFile)
+        assertNull(dotNotation)
+    }
+
+    @Test
+    fun testPathToDotNotation_NullAndNonExistent()
+    {
+        assertNull(PathUtils.PathToDotNotation(null as java.nio.file.Path?))
+        assertNull(PathUtils.PathToDotNotation(null as java.io.File?))
+        assertNull(PathUtils.PathToDotNotation(null as String?))
+        assertNull(PathUtils.PathToDotNotation(tempFolder.root.toPath().resolve("non_existent.cfc")))
+    }
 }

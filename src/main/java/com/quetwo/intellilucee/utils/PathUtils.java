@@ -319,5 +319,96 @@ public class PathUtils
         return path != null ? findClosestApplicationFileFromFile(Paths.get(path)) : null;
     }
 
+    /**
+     * Converts a given File, VirtualFile, Path, or String file path into a ColdFusion Component (CFC) dot notation name.
+     * Compares the target path against the closest Application.cfc/Application.cfm found using findClosestApplicationFileFromFile.
+     * The relative path from the directory containing the Application file to the target file is converted into dot notation
+     * by replacing directory separators with dots and removing the file extension.
+     *
+     * @param path the target Path
+     * @return dot-notation CFC component name, or null if path or closest Application file cannot be resolved
+     */
+    @Nullable
+    public static String PathToDotNotation(@Nullable Path path)
+    {
+        if (path == null)
+        {
+            return null;
+        }
+
+        Path appFile = findClosestApplicationFileFromFile(path);
+        if (appFile == null)
+        {
+            return null;
+        }
+
+        Path baseDir = appFile.getParent();
+        if (baseDir == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            Path target = path.toAbsolutePath().normalize();
+            Path base = baseDir.toAbsolutePath().normalize();
+
+            Path relative = base.relativize(target);
+            String relPathStr = relative.toString().replace('\\', '/');
+
+            while (relPathStr.startsWith("/"))
+            {
+                relPathStr = relPathStr.substring(1);
+            }
+
+            int lastDot = relPathStr.lastIndexOf('.');
+            int lastSlash = relPathStr.lastIndexOf('/');
+            if (lastDot > lastSlash)
+            {
+                relPathStr = relPathStr.substring(0, lastDot);
+            }
+
+            if (relPathStr.isEmpty())
+            {
+                return "";
+            }
+
+            return relPathStr.replace('/', '.');
+        }
+        catch (Exception e)
+        {
+            return null;
+        }
+    }
+
+    @Nullable
+    public static String PathToDotNotation(@Nullable File file)
+    {
+        return file != null ? PathToDotNotation(file.toPath()) : null;
+    }
+
+    @Nullable
+    public static String PathToDotNotation(@Nullable VirtualFile file)
+    {
+        if (file == null)
+        {
+            return null;
+        }
+        try
+        {
+            return PathToDotNotation(file.toNioPath());
+        }
+        catch (UnsupportedOperationException e)
+        {
+            String filePath = file.getPath();
+            return PathToDotNotation(filePath);
+        }
+    }
+
+    @Nullable
+    public static String PathToDotNotation(@Nullable String path)
+    {
+        return path != null ? PathToDotNotation(Paths.get(path)) : null;
+    }
 
 }
