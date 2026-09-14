@@ -1,7 +1,9 @@
 package com.quetwo.intellilucee.utils;
 
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -685,4 +687,166 @@ public class PathUtils
         return searchRoot != null ? DotNotationToVirtualFile(Paths.get(searchRoot), dotNotation) : null;
     }
 
+    /**
+     * Traverses the workspace and finds every .cfc file, returning a list of CFCDescriptor objects.
+     * Each CFCDescriptor contains the File path and the dot notation string for the component.
+     *
+     * @param workspaceRoot the root path of the workspace to traverse
+     * @return a list of CFCDescriptor objects for each .cfc file found
+     */
+    @NotNull
+    public static List<CFCDescriptor> ListAllComponents(@Nullable Path workspaceRoot)
+    {
+        List<CFCDescriptor> descriptors = new ArrayList<>();
+        if (workspaceRoot == null || !Files.exists(workspaceRoot))
+        {
+            return descriptors;
+        }
+
+        if (!Files.isDirectory(workspaceRoot))
+        {
+            String fileName = workspaceRoot.getFileName() != null ? workspaceRoot.getFileName().toString() : "";
+            if (fileName.toLowerCase().endsWith(".cfc"))
+            {
+                descriptors.add(new CFCDescriptor(workspaceRoot.toFile(), PathToDotNotation(workspaceRoot)));
+            }
+            return descriptors;
+        }
+
+        Queue<Path> queue = new ArrayDeque<>();
+        Set<Path> visited = new HashSet<>();
+
+        try
+        {
+            visited.add(workspaceRoot.toRealPath());
+        }
+        catch (IOException e)
+        {
+            visited.add(workspaceRoot.toAbsolutePath().normalize());
+        }
+        queue.add(workspaceRoot);
+
+        while (!queue.isEmpty())
+        {
+            Path currentDir = queue.poll();
+            if (currentDir == null)
+            {
+                continue;
+            }
+
+            List<Path> subDirs = new ArrayList<>();
+            List<Path> cfcFiles = new ArrayList<>();
+
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(currentDir))
+            {
+                for (Path entry : stream)
+                {
+                    if (Files.isDirectory(entry))
+                    {
+                        try
+                        {
+                            Path realPath = entry.toRealPath();
+                            if (visited.add(realPath))
+                            {
+                                subDirs.add(entry);
+                            }
+                        }
+                        catch (IOException e)
+                        {
+                            if (visited.add(entry.toAbsolutePath().normalize()))
+                            {
+                                subDirs.add(entry);
+                            }
+                        }
+                    }
+                    else if (Files.isRegularFile(entry))
+                    {
+                        String name = entry.getFileName() != null ? entry.getFileName().toString() : "";
+                        if (name.toLowerCase().endsWith(".cfc"))
+                        {
+                            cfcFiles.add(entry);
+                        }
+                    }
+                }
+            }
+            catch (IOException | SecurityException ignored)
+            {
+                // Skip inaccessible directories
+            }
+
+            subDirs.sort(Comparator.comparing(Path::toString, String.CASE_INSENSITIVE_ORDER));
+            queue.addAll(subDirs);
+
+            cfcFiles.sort(Comparator.comparing(Path::toString, String.CASE_INSENSITIVE_ORDER));
+            for (Path cfcPath : cfcFiles)
+            {
+                descriptors.add(new CFCDescriptor(cfcPath.toFile(), PathToDotNotation(cfcPath)));
+            }
+        }
+
+        return descriptors;
+    }
+
+    @NotNull
+    public static List<CFCDescriptor> ListAllComponents(@Nullable File workspaceRoot)
+    {
+        return workspaceRoot != null ? ListAllComponents(workspaceRoot.toPath()) : new ArrayList<>();
+    }
+
+    @NotNull
+    public static List<CFCDescriptor> ListAllComponents(@Nullable VirtualFile workspaceRoot)
+    {
+        if (workspaceRoot == null)
+        {
+            return new ArrayList<>();
+        }
+        try
+        {
+            return ListAllComponents(workspaceRoot.toNioPath());
+        }
+        catch (UnsupportedOperationException e)
+        {
+            return ListAllComponents(workspaceRoot.getPath());
+        }
+    }
+
+    @NotNull
+    public static List<CFCDescriptor> ListAllComponents(@Nullable String workspaceRoot)
+    {
+        return workspaceRoot != null ? ListAllComponents(Paths.get(workspaceRoot)) : new ArrayList<>();
+    }
+
+    @NotNull
+    public static List<CFCDescriptor> ListAllComponents(@Nullable Project project)
+    {
+        if (project == null || project.getBasePath() == null)
+        {
+            return new ArrayList<>();
+        }
+        return ListAllComponents(project.getBasePath());
+    }
+
+
+    public static class CFCDescriptor extends com.quetwo.intellilucee.utils.CFCDescriptor
+    {
+        public CFCDescriptor()
+        {
+            super();
+        }
+
+        public CFCDescriptor(@Nullable File cfcPath, @Nullable String dotNotation)
+        {
+            super(cfcPath, dotNotation);
+        }
+
+        public CFCDescriptor(@Nullable Path cfcPath, @Nullable String dotNotation)
+        {
+            super(cfcPath, dotNotation);
+        }
+
+        public CFCDescriptor(@Nullable String cfcPath, @Nullable String dotNotation)
+        {
+            super(cfcPath, dotNotation);
+        }
+    }
 }

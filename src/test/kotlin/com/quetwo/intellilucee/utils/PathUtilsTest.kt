@@ -397,4 +397,116 @@ class PathUtilsTest
         assertNotNull(resolvedPath)
         assertEquals(serviceFile.toRealPath(), resolvedPath!!.toRealPath())
     }
+
+    @Test
+    fun testListAllComponents_WithApplicationCfc()
+    {
+        val root = tempFolder.newFolder("list_all_app").toPath()
+        val appCfc = Files.createFile(root.resolve("Application.cfc"))
+        val modelsDir = Files.createDirectories(root.resolve("models"))
+        val userCfc = Files.createFile(modelsDir.resolve("User.cfc"))
+        val servicesDir = Files.createDirectories(root.resolve("services").resolve("sub"))
+        val authCfc = Files.createFile(servicesDir.resolve("AuthService.CFC"))
+        // Create a non-CFC file to ensure it's filtered out
+        Files.createFile(modelsDir.resolve("helper.cfm"))
+        Files.createFile(root.resolve("readme.txt"))
+
+        val components = PathUtils.ListAllComponents(root)
+        assertEquals(3, components.size)
+
+        val dotNotations = components.map { it.dotNotation }.toSet()
+        val files = components.map { it.cfcPath?.canonicalPath }.toSet()
+
+        assertEquals(setOf("Application", "models.User", "services.sub.AuthService"), dotNotations)
+        assertEquals(
+            setOf(
+                appCfc.toFile().canonicalPath,
+                userCfc.toFile().canonicalPath,
+                authCfc.toFile().canonicalPath
+            ),
+            files
+        )
+    }
+
+    @Test
+    fun testListAllComponents_WithoutApplicationCfc()
+    {
+        val root = tempFolder.newFolder("list_all_no_app").toPath()
+        val modelsDir = Files.createDirectories(root.resolve("models"))
+        val userCfc = Files.createFile(modelsDir.resolve("User.cfc"))
+        val itemCfc = Files.createFile(root.resolve("Item.cfc"))
+
+        val components = PathUtils.ListAllComponents(root)
+        assertEquals(2, components.size)
+
+        val dotNotations = components.map { it.dotNotation }.toSet()
+        val files = components.map { it.cfcPath?.canonicalPath }.toSet()
+
+        assertEquals(setOf(null), dotNotations)
+        assertEquals(
+            setOf(
+                userCfc.toFile().canonicalPath,
+                itemCfc.toFile().canonicalPath
+            ),
+            files
+        )
+    }
+
+    @Test
+    fun testListAllComponents_Overloads()
+    {
+        val root = tempFolder.newFolder("list_all_overloads").toPath()
+        Files.createFile(root.resolve("Application.cfc"))
+        val userCfc = Files.createFile(root.resolve("User.cfc"))
+
+        val fromPath = PathUtils.ListAllComponents(root)
+        val fromFile = PathUtils.ListAllComponents(root.toFile())
+        val fromString = PathUtils.ListAllComponents(root.toString())
+
+
+        assertEquals(2, fromPath.size)
+        assertEquals(2, fromFile.size)
+        assertEquals(2, fromString.size)
+
+        assertEquals(fromPath, fromFile)
+        assertEquals(fromPath, fromString)
+    }
+
+    @Test
+    fun testListAllComponents_EmptyOrNull()
+    {
+        val emptyRoot = tempFolder.newFolder("list_all_empty").toPath()
+        assertEquals(0, PathUtils.ListAllComponents(emptyRoot).size)
+        assertEquals(0, PathUtils.ListAllComponents(null as java.nio.file.Path?).size)
+        assertEquals(0, PathUtils.ListAllComponents(null as java.io.File?).size)
+        assertEquals(0, PathUtils.ListAllComponents(null as String?).size)
+        assertEquals(0, PathUtils.ListAllComponents(emptyRoot.resolve("non_existent")).size)
+    }
+
+    @Test
+    fun testCFCDescriptor_PropertiesAndMethods()
+    {
+        val file = java.io.File("models/User.cfc")
+        val descriptor = CFCDescriptor(file, "models.User")
+
+        assertEquals(file, descriptor.cfcPath)
+        assertEquals(file, descriptor.path)
+        assertEquals(file, descriptor.file)
+        assertEquals(file, descriptor.cfcFile)
+        assertEquals("models.User", descriptor.dotNotation)
+        assertEquals("models.User", descriptor.cfcDotNotation)
+
+        val newFile = java.io.File("services/Auth.cfc")
+        descriptor.cfcPath = newFile
+        descriptor.dotNotation = "services.Auth"
+        assertEquals(newFile, descriptor.cfcPath)
+        assertEquals("services.Auth", descriptor.dotNotation)
+
+        val desc2 = CFCDescriptor(newFile, "services.Auth")
+        assertEquals(descriptor, desc2)
+        assertEquals(descriptor.hashCode(), desc2.hashCode())
+
+        val innerDesc = PathUtils.CFCDescriptor(newFile, "services.Auth")
+        assertEquals(descriptor, innerDesc)
+    }
 }
