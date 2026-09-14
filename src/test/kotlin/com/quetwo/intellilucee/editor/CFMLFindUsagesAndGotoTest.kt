@@ -347,6 +347,92 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
     }
 
     @Test
+    fun testNoDuplicateLineMarkersForElementsChunks() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function foo() {
+                    return 1;
+                }
+                
+                function bar() {
+                    return foo();
+                }
+            }
+            """.trimIndent()
+        )
+
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val allMarkers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+
+        // Simulate daemon passing elements one by one or in batches
+        val text = file.text
+        for (i in 0 until text.length) {
+            val element = file.findElementAt(i) ?: continue
+            val chunkMarkers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+            lineMarkerProvider.collectSlowLineMarkers(listOf(element), chunkMarkers)
+            for (m in chunkMarkers) {
+                // Ensure no duplicate marker is added for the same element
+                if (!allMarkers.any { it.element == m.element }) {
+                    allMarkers.add(m)
+                }
+            }
+        }
+
+        // There should be exactly 2 markers: one for foo, one for bar
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(2, model.functions.size)
+        assertEquals(2, allMarkers.size)
+    }
+
+    @Test
+    fun testNoLineMarkerForNonFunctionElement() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                var x = 10;
+                function foo() {
+                    return x;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val varElement = file.findElementAt(file.text.indexOf("x = 10"))!!
+        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+        lineMarkerProvider.collectSlowLineMarkers(listOf(varElement), markers)
+
+        // No line markers should be added for a variable element
+        assertTrue("No line markers should be added for non-function element", markers.isEmpty())
+    }
+
+    @Test
+    fun testNoLineMarkerForAnonymousFunction() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function foo() {
+                    var cb = function() { return 42; };
+                    return cb();
+                }
+            }
+            """.trimIndent()
+        )
+
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
+
+        // Only foo should have a marker, anonymous function shouldn't
+        assertEquals(1, markers.size)
+        assertEquals("foo", (CFMLPsiUtil.resolveSymbolAt(file, markers[0].element!!.textRange.startOffset) as? CFMLFunctionElement)?.name)
+    }
+
+    @Test
     fun testGotoFunctionFromCfinvoke() {
         val file = myFixture.configureByText(
             "test.cfm",

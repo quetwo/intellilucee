@@ -32,34 +32,41 @@ class CFMLFunctionUsageLineMarkerProvider : LineMarkerProvider
         val file = elements.first().containingFile ?: return
         if (!CFMLPsiUtil.isCFMLFile(file)) return
 
+        val elementSet = elements.toHashSet()
+        val isWholeFile = file in elementSet
         val model = CFMLPsiUtil.getModel(file)
+
         for (func in model.functions)
         {
-            val usageCount = model.getFunctionUsageCount(func)
-            val tooltip = if (usageCount == 1) "1 use" else "$usageCount uses"
-            val targetElement = file.findElementAt(func.nameRange.startOffset) ?: file
+            if (func.name.isEmpty()) continue
+            val targetElement = file.findElementAt(func.nameRange.startOffset) ?: if (isWholeFile) file else continue
+            if (isWholeFile || targetElement in elementSet)
+            {
+                val usageCount = model.getFunctionUsageCount(func)
+                val tooltip = if (usageCount == 1) "1 use" else "$usageCount uses"
 
-            val navHandler = GutterIconNavigationHandler<PsiElement>
-            { e, elt ->
-                val funcElement = CFMLPsiUtil.getFunctionElement(file, func)
-                val findUsagesHandler = CFMLFindUsagesHandlerFactory().createFindUsagesHandler(funcElement, false)
-                if (findUsagesHandler != null)
-                {
-                    val findManager = com.intellij.find.FindManager.getInstance(file.project)
-                    findManager.findUsages(funcElement)
+                val navHandler = GutterIconNavigationHandler<PsiElement>
+                { _, _ ->
+                    val funcElement = CFMLPsiUtil.getFunctionElement(file, func)
+                    val findUsagesHandler = CFMLFindUsagesHandlerFactory().createFindUsagesHandler(funcElement, false)
+                    if (findUsagesHandler != null)
+                    {
+                        val findManager = com.intellij.find.FindManager.getInstance(file.project)
+                        findManager.findUsages(funcElement)
+                    }
                 }
-            }
 
-            val marker = LineMarkerInfo(
-                targetElement,
-                func.nameRange,
-                CFMLIcon.FILE,
-                { tooltip },
-                navHandler,
-                GutterIconRenderer.Alignment.LEFT,
-                { tooltip }
-            )
-            result.add(marker)
+                val marker = LineMarkerInfo(
+                    targetElement,
+                    targetElement.textRange,
+                    CFMLIcon.FILE,
+                    { tooltip },
+                    navHandler,
+                    GutterIconRenderer.Alignment.LEFT,
+                    { tooltip }
+                )
+                result.add(marker)
+            }
         }
     }
 }
