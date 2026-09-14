@@ -658,25 +658,54 @@ public class PathUtils
     public static VirtualFile DotNotationToVirtualFile(@Nullable VirtualFile searchRoot, @Nullable String dotNotation)
     {
         Path path = DotNotationToPath(searchRoot, dotNotation);
-        if (path == null)
+        if (path != null)
+        {
+            try
+            {
+                LocalFileSystem lfs = LocalFileSystem.getInstance();
+                if (lfs != null)
+                {
+                    VirtualFile vf = lfs.findFileByNioFile(path);
+                    if (vf == null)
+                    {
+                        vf = lfs.refreshAndFindFileByNioFile(path);
+                    }
+                    if (vf != null)
+                    {
+                        return vf;
+                    }
+                }
+            }
+            catch (Throwable ignored)
+            {
+            }
+        }
+
+        if (searchRoot == null || dotNotation == null)
         {
             return null;
         }
-        try
+        String notation = dotNotation.trim();
+        if (notation.isEmpty())
         {
-            LocalFileSystem lfs = LocalFileSystem.getInstance();
-            if (lfs != null)
-            {
-                VirtualFile vf = lfs.findFileByNioFile(path);
-                if (vf == null)
-                {
-                    vf = lfs.refreshAndFindFileByNioFile(path);
-                }
-                return vf;
-            }
+            return null;
         }
-        catch (Throwable ignored)
+        if (notation.toLowerCase().endsWith(".cfc"))
         {
+            notation = notation.substring(0, notation.length() - 4);
+        }
+        String relPath = notation.replace('.', '/') + ".cfc";
+
+        VirtualFile current = searchRoot.isDirectory() ? searchRoot : searchRoot.getParent();
+        while (current != null)
+        {
+            VirtualFile cfcChild = current.findChild("Application.cfc");
+            VirtualFile cfmChild = current.findChild("Application.cfm");
+            if ((cfcChild != null && !cfcChild.isDirectory()) || (cfmChild != null && !cfmChild.isDirectory()))
+            {
+                return current.findFileByRelativePath(relPath);
+            }
+            current = current.getParent();
         }
         return null;
     }

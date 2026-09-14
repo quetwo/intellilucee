@@ -387,6 +387,59 @@ object CFMLModelParser
         functions: List<CFMLFunctionDeclaration>,
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
+        // 0. Property declarations: property name="foo" type="string"; or property string foo; or property foo;
+        val propPattern = Pattern.compile("""(?i)\bproperty\s+([^;]+);""")
+        val propMatcher = propPattern.matcher(text)
+        while (propMatcher.find())
+        {
+            val propStart = propMatcher.start()
+            if (isInsideRanges(propStart, commentRanges)) continue
+            val propBody = propMatcher.group(1).trim()
+            val enclosingFunc = findInnermostEnclosingFunction(propStart, functions)
+
+            val nameAttrM = Pattern.compile("""(?i)\bname\s*=\s*["']?([A-Za-z0-9_]+)["']?""").matcher(propBody)
+            if (nameAttrM.find())
+            {
+                val name = nameAttrM.group(1)
+                val nameStart = propMatcher.start(1) + nameAttrM.start(1)
+                val nameEnd = propMatcher.start(1) + nameAttrM.end(1)
+                val decl = CFMLVariableDeclaration(
+                    name,
+                    TextRange(nameStart, nameEnd),
+                    TextRange(propMatcher.start(), propMatcher.end()),
+                    isLocal = false,
+                    enclosingFunction = enclosingFunc
+                )
+                if (varDecls.none { it.name.equals(name, ignoreCase = true) && it.enclosingFunction == enclosingFunc })
+                {
+                    varDecls.add(decl)
+                }
+            }
+            else
+            {
+                val beforeEq = propBody.substringBefore('=').trim()
+                val eqTokens = beforeEq.split(Regex("""\s+""")).filter { it.isNotEmpty() }
+                val name = eqTokens.lastOrNull()
+                if (name != null && name.matches(Regex("""[A-Za-z0-9_]+""")) && !KEYWORDS.contains(name.lowercase()))
+                {
+                    val nameIdx = propBody.lastIndexOf(name)
+                    val nameStart = propMatcher.start(1) + nameIdx
+                    val nameEnd = nameStart + name.length
+                    val decl = CFMLVariableDeclaration(
+                        name,
+                        TextRange(nameStart, nameEnd),
+                        TextRange(propMatcher.start(), propMatcher.end()),
+                        isLocal = false,
+                        enclosingFunction = enclosingFunc
+                    )
+                    if (varDecls.none { it.name.equals(name, ignoreCase = true) && it.enclosingFunction == enclosingFunc })
+                    {
+                        varDecls.add(decl)
+                    }
+                }
+            }
+        }
+
         // 1. var declarations: var a = 1, b = 2; or var string x = "hello"; or var x;
         val varPattern = Pattern.compile("""(?i)\bvar\s+""")
         val varMatcher = varPattern.matcher(text)
@@ -517,8 +570,8 @@ object CFMLModelParser
             }
         }
 
-        // 6. Plain and scoped assignments: x = ... or local.x = ... or variables.x = ...
-        val assignPattern = Pattern.compile("""(?i)(?:^|[\s;{}])((?:(?:local|variables)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)(?!=)""")
+        // 6. Plain and scoped assignments: x = ... or local.x = ... or variables.x = ... or this.x = ...
+        val assignPattern = Pattern.compile("""(?i)(?:^|[\s;{}])((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)(?!=)""")
         val assignMatcher = assignPattern.matcher(text)
         while (assignMatcher.find())
         {
@@ -530,7 +583,7 @@ object CFMLModelParser
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
-                val isLocal = fullVar.lowercase().startsWith("local.") || enclosingFunc != null
+                val isLocal = fullVar.lowercase().startsWith("local.") || (enclosingFunc != null && !fullVar.lowercase().startsWith("variables.") && !fullVar.lowercase().startsWith("this."))
                 val decl = CFMLVariableDeclaration(
                     name,
                     TextRange(nameStart, nameEnd),
@@ -556,7 +609,7 @@ object CFMLModelParser
         val eqIdx = item.indexOf('=')
         val lhs = if (eqIdx >= 0) item.substring(0, eqIdx) else item
 
-        val pattern = Pattern.compile("""(?i)((?:(?:local|variables)\.)?([A-Za-z0-9_]+))\s*$""")
+        val pattern = Pattern.compile("""(?i)((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*$""")
         val m = pattern.matcher(lhs)
         if (m.find())
         {
@@ -573,7 +626,7 @@ object CFMLModelParser
                     clean,
                     TextRange(nameStart, nameEnd),
                     TextRange(fullStart, fullEnd),
-                    isLocal = enclosingFunc != null || fullVar.lowercase().startsWith("local."),
+                    isLocal = (enclosingFunc != null && !fullVar.lowercase().startsWith("variables.") && !fullVar.lowercase().startsWith("this.")) || fullVar.lowercase().startsWith("local."),
                     enclosingFunction = enclosingFunc
                 )
             }
@@ -684,8 +737,37 @@ object CFMLModelParser
         functions: List<CFMLFunctionDeclaration>,
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
-        // 1. <cfset var x = ...> or <cfset x = ...> or <cfset local.x = ...> or <cfset variables.x = ...>
-        val cfsetPattern = Pattern.compile("""(?i)<cfset\s+(?:var\s+)?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)""", Pattern.DOTALL)
+        // 0. <cfproperty name="myProp" type="string">
+        val cfpropPattern = Pattern.compile("""(?i)<cfproperty\b([^>]*)>""")
+        val cfpropMatcher = cfpropPattern.matcher(text)
+        while (cfpropMatcher.find())
+        {
+            val start = cfpropMatcher.start()
+            if (isInsideRanges(start, commentRanges)) continue
+            val attrs = cfpropMatcher.group(1)
+            val nameM = Pattern.compile("""(?i)\bname\s*=\s*["']?([A-Za-z0-9_]+)["']?""").matcher(attrs)
+            if (nameM.find())
+            {
+                val name = nameM.group(1)
+                val nameStart = cfpropMatcher.start(1) + nameM.start(1)
+                val nameEnd = cfpropMatcher.start(1) + nameM.end(1)
+                val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
+                val decl = CFMLVariableDeclaration(
+                    name,
+                    TextRange(nameStart, nameEnd),
+                    TextRange(cfpropMatcher.start(), cfpropMatcher.end()),
+                    isLocal = false,
+                    enclosingFunction = enclosingFunc
+                )
+                if (varDecls.none { it.name.equals(name, ignoreCase = true) && it.enclosingFunction == enclosingFunc })
+                {
+                    varDecls.add(decl)
+                }
+            }
+        }
+
+        // 1. <cfset var x = ...> or <cfset x = ...> or <cfset local.x = ...> or <cfset variables.x = ...> or <cfset this.x = ...>
+        val cfsetPattern = Pattern.compile("""(?i)<cfset\s+(?:var\s+)?((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)""", Pattern.DOTALL)
         val cfsetMatcher = cfsetPattern.matcher(text)
         while (cfsetMatcher.find())
         {
@@ -696,7 +778,7 @@ object CFMLModelParser
             val nameStart = cfsetMatcher.start(2)
             val nameEnd = cfsetMatcher.end(2)
             val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
-            val isLocal = fullVar.lowercase().startsWith("local.") || cfsetMatcher.group().lowercase().contains("var ") || (enclosingFunc != null)
+            val isLocal = fullVar.lowercase().startsWith("local.") || cfsetMatcher.group().lowercase().contains("var ") || (enclosingFunc != null && !fullVar.lowercase().startsWith("variables.") && !fullVar.lowercase().startsWith("this."))
             val decl = CFMLVariableDeclaration(
                 name,
                 TextRange(nameStart, nameEnd),
