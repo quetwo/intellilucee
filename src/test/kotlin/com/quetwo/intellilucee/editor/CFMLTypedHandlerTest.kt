@@ -426,4 +426,11 @@ class CFMLTypedHandlerTest : BasePlatformTestCase() {
         myFixture.type('{')
         myFixture.checkResult("/* function foo() */ var s = {<caret>")
     }
+
+    @Test
+    fun testTypePeriodInCfmlFile() {
+        myFixture.configureByText("test.cfs", "var user = createObject('component', 'models.User');\nuser<caret>")
+        myFixture.type('.')
+        myFixture.checkResult("var user = createObject('component', 'models.User');\nuser.<caret>")
+    }
 }

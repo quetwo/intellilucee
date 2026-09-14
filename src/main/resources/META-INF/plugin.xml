@@ -108,6 +108,11 @@
         <gotoDeclarationHandler
                 implementation="com.quetwo.intellilucee.editor.CFMLGotoDeclarationHandler"/>
 
+        <!-- Code completion contributor for CFML -->
+        <completion.contributor
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLCompletionContributor"/>
+
         <!-- References Contributor for CFML -->
         <psi.referenceContributor
                 language="CFML"

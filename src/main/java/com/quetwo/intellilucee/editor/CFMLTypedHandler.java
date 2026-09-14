@@ -1,5 +1,6 @@
 package com.quetwo.intellilucee.editor;
 
+import com.intellij.codeInsight.AutoPopupController;
 import com.intellij.codeInsight.CodeInsightSettings;
 import com.intellij.codeInsight.editorActions.TypedHandlerDelegate;
 import com.intellij.openapi.editor.Caret;
@@ -135,6 +136,15 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
     @Override
     public @NotNull Result charTyped(char c, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file)
     {
+        if (c == '.' || c == '=')
+        {
+            if (isCfmlFile(file))
+            {
+                AutoPopupController.getInstance(project).scheduleAutoPopup(editor);
+            }
+            return Result.CONTINUE;
+        }
+
         if (c != '>' && c != '{')
         {
             return Result.CONTINUE;
