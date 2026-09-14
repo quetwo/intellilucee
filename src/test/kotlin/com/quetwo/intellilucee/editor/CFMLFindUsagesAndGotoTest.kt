@@ -441,7 +441,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertNotNull("Collector should not be null", collector)
         assertTrue(collector is com.intellij.codeInsight.hints.declarative.SharedBypassCollector)
 
-        var hintCount = 0
+        val recordedPositions = mutableListOf<Int>()
         val mockSink = object : com.intellij.codeInsight.hints.declarative.InlayTreeSink {
             override fun addPresentation(
                 position: com.intellij.codeInsight.hints.declarative.InlayPosition,
@@ -450,7 +450,9 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
                 hintFormat: com.intellij.codeInsight.hints.declarative.HintFormat,
                 builder: com.intellij.codeInsight.hints.declarative.PresentationTreeBuilder.() -> Unit
             ) {
-                hintCount++
+                if (position is com.intellij.codeInsight.hints.declarative.InlineInlayPosition) {
+                    recordedPositions.add(position.offset)
+                }
             }
             override fun whenOptionEnabled(optionId: String, block: () -> Unit) {
                 block()
@@ -460,12 +462,117 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         val bypassCollector = collector as com.intellij.codeInsight.hints.declarative.SharedBypassCollector
         // Calling for file
         bypassCollector.collectFromElement(file, mockSink)
-        assertEquals("Should emit exactly 2 hints (one per function) when collecting for file", 2, hintCount)
+        assertEquals("Should emit exactly 2 hints (one per function) when collecting for file", 2, recordedPositions.size)
+
+        // Verify hint positions are right before curly brace or end of declaration
+        val text = file.text
+        val firstBraceOffset = text.indexOf('{', text.indexOf("myHandler"))
+        // Position should be right before the brace '{' (or after closing paren)
+        val expectedFirstOffset = text.indexOf("myHandler()") + "myHandler()".length
+        assertEquals(expectedFirstOffset, recordedPositions[0])
+
+        val secondBraceOffset = text.indexOf('{', text.indexOf("run"))
+        val expectedSecondOffset = text.indexOf("run()") + "run()".length
+        assertEquals(expectedSecondOffset, recordedPositions[1])
 
         // Calling for a child element should not emit additional hints
         val child = file.firstChild ?: file
         bypassCollector.collectFromElement(child, mockSink)
-        assertEquals("Should NOT emit hints when called on child element", 2, hintCount)
+        assertEquals("Should NOT emit hints when called on child element", 2, recordedPositions.size)
+    }
+
+    @Test
+    fun testInlayHintsPositioningForTagAndScriptFunctions() {
+        val scriptCode = """
+            component {
+                public void function processData(numeric id, string name = "default") {
+                    return;
+                }
+            }
+        """.trimIndent()
+        val scriptFile = myFixture.configureByText("ScriptTest.cfc", scriptCode)
+        val scriptModel = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(scriptFile)
+        val scriptFunc = scriptModel.functions.first { it.name == "processData" }
+        val scriptOffset = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(scriptCode, scriptFunc)
+        val scriptExpected = scriptCode.indexOf('{', scriptCode.indexOf("processData"))
+        // Offset should be right before '{' (after whitespace trimmed before brace)
+        assertTrue("Script inlay offset should be right before curly brace", scriptOffset <= scriptExpected && scriptOffset >= scriptCode.indexOf("name = \"default\")"))
+
+        val tagCode = """
+            <cfcomponent>
+                <cffunction name="doSomething" access="public" returntype="void">
+                    <cfset var x = 1>
+                </cffunction>
+            </cfcomponent>
+        """.trimIndent()
+        val tagFile = myFixture.configureByText("TagTest.cfc", tagCode)
+        val tagModel = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(tagFile)
+        val tagFunc = tagModel.functions.first { it.name == "doSomething" }
+        val tagOffset = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(tagCode, tagFunc)
+        val tagClosingAngle = tagCode.indexOf('>', tagCode.indexOf("<cffunction"))
+        assertEquals("Tag inlay offset should be at end of cffunction opening tag", tagClosingAngle, tagOffset)
+    }
+
+    @Test
+    fun testInlayHintsPositioningWhenCurlyBraceOnNextLine() {
+        val code = """
+            component {
+                public void function calculateTotal(numeric a, numeric b)
+                {
+                    return a + b;
+                }
+            }
+        """.trimIndent()
+        val file = myFixture.configureByText("NextLineBraceTest.cfc", code)
+        val model = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(file)
+        val func = model.functions.first { it.name == "calculateTotal" }
+        val offset = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(code, func)
+        val closingParenOffset = code.indexOf("numeric b)") + "numeric b)".length
+        val newlineOffset = code.indexOf('\n', closingParenOffset)
+        // Inlay offset should be on the same line as declaration (after closing paren, before newline)
+        assertEquals("Inlay hint should be right after closing paren on declaration line", closingParenOffset, offset)
+        assertTrue("Inlay hint must be before the newline", offset <= (if (newlineOffset >= 0) newlineOffset else code.length))
+        val braceOffset = code.indexOf('{', closingParenOffset)
+        assertTrue("Inlay hint must NOT be on the line with the curly brace", offset < braceOffset)
+    }
+
+    @Test
+    fun testInlayHintsPositioningWithMultilineParameters() {
+        val codeWithBraceOnNextLine = """
+            component {
+                function complexFunction(
+                    numeric firstParam,
+                    string secondParam
+                )
+                {
+                    return;
+                }
+            }
+        """.trimIndent()
+        val file1 = myFixture.configureByText("Multiline1.cfc", codeWithBraceOnNextLine)
+        val model1 = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(file1)
+        val func1 = model1.functions.first { it.name == "complexFunction" }
+        val offset1 = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(codeWithBraceOnNextLine, func1)
+        val closingParen1 = codeWithBraceOnNextLine.indexOf(')', codeWithBraceOnNextLine.indexOf("secondParam"))
+        assertEquals("Inlay hint should be right after closing paren on the multiline argument declaration line", closingParen1 + 1, offset1)
+
+        val codeWithBraceOnSameLine = """
+            component {
+                function complexFunction2(
+                    numeric firstParam,
+                    string secondParam
+                ) {
+                    return;
+                }
+            }
+        """.trimIndent()
+        val file2 = myFixture.configureByText("Multiline2.cfc", codeWithBraceOnSameLine)
+        val model2 = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(file2)
+        val func2 = model2.functions.first { it.name == "complexFunction2" }
+        val offset2 = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(codeWithBraceOnSameLine, func2)
+        val closingParen2 = codeWithBraceOnSameLine.indexOf(')', codeWithBraceOnSameLine.indexOf("secondParam"))
+        val brace2 = codeWithBraceOnSameLine.indexOf('{', closingParen2)
+        assertTrue("Inlay hint should be after arguments and before curly brace", offset2 in (closingParen2 + 1)..brace2)
     }
 
     @Test
