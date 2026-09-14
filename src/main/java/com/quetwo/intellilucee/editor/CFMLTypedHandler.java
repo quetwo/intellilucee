@@ -136,7 +136,7 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
     @Override
     public @NotNull Result charTyped(char c, @NotNull Project project, @NotNull Editor editor, @NotNull PsiFile file)
     {
-        if (c == '.')
+        if (c == '.' || c == '=')
         {
             if (isCfmlFile(file))
             {

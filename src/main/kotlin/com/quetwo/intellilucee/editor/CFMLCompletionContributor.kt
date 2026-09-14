@@ -38,33 +38,100 @@ class CFMLCompletionContributor : CompletionContributor()
         val posOffset = parameters.position.textRange.startOffset
         val varInfo = findPrecedingVariable(chars, posOffset)
             ?: findPrecedingVariable(chars, parameters.offset)
-            ?: return
 
-        val dotNotation = resolveComponentDotNotation(file, varInfo.varName, posOffset)
-            ?: resolveComponentDotNotation(parameters.position.containingFile, varInfo.varName, posOffset)
-            ?: return
-
-        val cfcModel = resolveCfcModel(file, dotNotation) ?: return
-
-        for (func in cfcModel.functions)
+        if (varInfo != null)
         {
-            val paramStr = func.parameters.joinToString(", ") { it.name }
-            val tailText = "($paramStr)"
-            val element = LookupElementBuilder.create(func.name)
-                .withIcon(AllIcons.Nodes.Method)
-                .withTailText(tailText, true)
-                .withTypeText("method", true)
-                .withInsertHandler(ParenthesesInsertHandler.getInstance(func.parameters.isNotEmpty()))
-            result.addElement(PrioritizedLookupElement.withPriority(element, 1000.0))
+            val dotNotation = resolveComponentDotNotation(file, varInfo.varName, posOffset)
+                ?: resolveComponentDotNotation(parameters.position.containingFile, varInfo.varName, posOffset)
+
+            if (dotNotation != null)
+            {
+                val cfcModel = resolveCfcModel(file, dotNotation)
+                if (cfcModel != null)
+                {
+                    for (func in cfcModel.functions)
+                    {
+                        val paramStr = func.parameters.joinToString(", ") { it.name }
+                        val tailText = "($paramStr)"
+                        val element = LookupElementBuilder.create(func.name)
+                            .withIcon(AllIcons.Nodes.Method)
+                            .withTailText(tailText, true)
+                            .withTypeText("method", true)
+                            .withInsertHandler(ParenthesesInsertHandler.getInstance(func.parameters.isNotEmpty()))
+                        result.addElement(PrioritizedLookupElement.withPriority(element, 1000.0))
+                    }
+
+                    val addedVars = mutableSetOf<String>()
+                    val componentVars = cfcModel.variableDeclarations.filter { !it.isLocal || it.enclosingFunction == null }
+                    for (varDecl in componentVars)
+                    {
+                        if (addedVars.add(varDecl.name.lowercase()))
+                        {
+                            val element = LookupElementBuilder.create(varDecl.name)
+                                .withIcon(AllIcons.Nodes.Variable)
+                                .withTypeText("variable", true)
+                            result.addElement(PrioritizedLookupElement.withPriority(element, 999.0))
+                        }
+                    }
+                    return
+                }
+            }
+            return
         }
 
-        val addedVars = mutableSetOf<String>()
-        val componentVars = cfcModel.variableDeclarations.filter { !it.isLocal || it.enclosingFunction == null }
-        for (varDecl in componentVars)
+        if (isAssigningVariable(chars, posOffset) || isAssigningVariable(chars, parameters.offset))
         {
-            if (addedVars.add(varDecl.name.lowercase()))
+            fillAssignmentVariants(parameters, chars, posOffset, result)
+        }
+    }
+
+    private fun fillAssignmentVariants(
+        parameters: CompletionParameters,
+        chars: CharSequence,
+        posOffset: Int,
+        result: CompletionResultSet
+    )
+    {
+        val model = CFMLModelParser.parse(chars.toString())
+        val currentFunc = model.findEnclosingFunction(posOffset)
+            ?: model.findEnclosingFunction(parameters.offset)
+
+        // 1. Add functions from current document
+        val addedFunctions = mutableSetOf<String>()
+        for (func in model.functions)
+        {
+            if (addedFunctions.add(func.name.lowercase()))
             {
-                val element = LookupElementBuilder.create(varDecl.name)
+                val paramStr = func.parameters.joinToString(", ") { it.name }
+                val tailText = "($paramStr)"
+                val element = LookupElementBuilder.create(func.name)
+                    .withIcon(AllIcons.Nodes.Function)
+                    .withTailText(tailText, true)
+                    .withTypeText("function", true)
+                    .withInsertHandler(ParenthesesInsertHandler.getInstance(func.parameters.isNotEmpty()))
+                result.addElement(PrioritizedLookupElement.withPriority(element, 1000.0))
+            }
+        }
+
+        // 2. Add in-scope variables from current document
+        val addedVars = mutableSetOf<String>()
+        val inScopeVars = model.variableDeclarations.filter { decl ->
+            if (decl.enclosingFunction == null || !decl.isLocal)
+            {
+                true
+            }
+            else
+            {
+                currentFunc != null && decl.enclosingFunction == currentFunc
+            }
+        }
+
+        for (varDecl in inScopeVars)
+        {
+            val cleanName = CFMLDocumentModel.cleanVariableName(varDecl.name)
+            if (cleanName.isNotEmpty() && addedVars.add(cleanName.lowercase()))
+            {
+                val element = LookupElementBuilder.create(cleanName)
                     .withIcon(AllIcons.Nodes.Variable)
                     .withTypeText("variable", true)
                 result.addElement(PrioritizedLookupElement.withPriority(element, 999.0))
@@ -437,6 +504,245 @@ class CFMLCompletionContributor : CompletionContributor()
             {
                 return null
             }
+        }
+
+        fun isAssigningVariable(chars: CharSequence, offset: Int): Boolean
+        {
+            if (offset <= 0 || offset > chars.length) return false
+
+            // 1. Check tag syntax: <cfset ...> or <cfparam ...>
+            val tagAssign = checkTagAssignment(chars, offset)
+            if (tagAssign != null)
+            {
+                return tagAssign
+            }
+
+            // 2. Check script syntax
+            return checkScriptAssignment(chars, offset)
+        }
+
+        private fun checkTagAssignment(chars: CharSequence, offset: Int): Boolean?
+        {
+            var i = offset - 1
+            var insideTag = false
+            var tagStart = -1
+
+            while (i >= 0)
+            {
+                val c = chars[i]
+                if (c == '>')
+                {
+                    return null
+                }
+                if (c == '<')
+                {
+                    tagStart = i
+                    insideTag = true
+                    break
+                }
+                i--
+            }
+
+            if (!insideTag || tagStart < 0)
+            {
+                return null
+            }
+
+            val tagChunk = chars.subSequence(tagStart, offset).toString()
+            val lower = tagChunk.lowercase()
+
+            if (lower.startsWith("<cfset"))
+            {
+                val eqIndex = tagChunk.indexOf('=')
+                return eqIndex in 6 until tagChunk.length
+            }
+
+            if (lower.startsWith("<cfparam"))
+            {
+                val defaultPattern = Pattern.compile("""(?i)\bdefault\s*=\s*["']?""")
+                return defaultPattern.matcher(tagChunk).find()
+            }
+
+            return null
+        }
+
+        private fun checkScriptAssignment(chars: CharSequence, offset: Int): Boolean
+        {
+            var i = offset - 1
+            var parenDepth = 0
+            var bracketDepth = 0
+            var stmtStart = 0
+
+            while (i >= 0)
+            {
+                val c = chars[i]
+                if (c == ')')
+                {
+                    parenDepth++
+                }
+                else if (c == '(')
+                {
+                    if (parenDepth > 0) parenDepth--
+                }
+                else if (c == ']')
+                {
+                    bracketDepth++
+                }
+                else if (c == '[')
+                {
+                    if (bracketDepth > 0) bracketDepth--
+                }
+                else if (parenDepth == 0 && bracketDepth == 0)
+                {
+                    if (c == ';' || c == '{' || c == '}')
+                    {
+                        stmtStart = i + 1
+                        break
+                    }
+                    if (c == '\n' || c == '\r')
+                    {
+                        var prev = i - 1
+                        while (prev >= 0 && (chars[prev] == ' ' || chars[prev] == '\t' || chars[prev] == '\r'))
+                        {
+                            prev--
+                        }
+                        if (prev >= 0)
+                        {
+                            val prevChar = chars[prev]
+                            if (prevChar == '=' || prevChar == '+' || prevChar == '-' || prevChar == '*' ||
+                                prevChar == '/' || prevChar == ',' || prevChar == '&' || prevChar == '|' ||
+                                prevChar == '?' || prevChar == ':' || prevChar == '(' || prevChar == '[')
+                            {
+                                i = prev
+                                continue
+                            }
+                        }
+                        stmtStart = i + 1
+                        break
+                    }
+                }
+                i--
+            }
+
+            if (stmtStart >= offset) return false
+
+            var stmtText = chars.subSequence(stmtStart, offset).toString().trim()
+            if (stmtText.isEmpty()) return false
+
+            stmtText = stmtText.replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), "")
+            stmtText = stmtText.replace(Regex("""//.*"""), "")
+            stmtText = stmtText.trim()
+
+            val forMatch = Regex("""(?i)^\bfor\s*\(\s*(.*)$""").find(stmtText)
+            if (forMatch != null)
+            {
+                stmtText = forMatch.groupValues[1].trim()
+            }
+
+            val wordEnd = stmtText.indexOfFirst { !it.isLetterOrDigit() && it != '_' }
+            if (wordEnd > 0)
+            {
+                val keyword = stmtText.substring(0, wordEnd).lowercase()
+                if (keyword in setOf("if", "while", "switch", "catch", "return", "throw", "rethrow", "function", "interface", "component", "import", "include"))
+                {
+                    return false
+                }
+            }
+
+            val eqIdx = findAssignmentEqualsIndex(stmtText)
+            if (eqIdx < 0) return false
+
+            var lhs = stmtText.substring(0, eqIdx).trim()
+            if (lhs.contains(','))
+            {
+                lhs = lhs.substringAfterLast(',').trim()
+            }
+
+            return isValidAssignmentLhs(lhs)
+        }
+
+        private fun findAssignmentEqualsIndex(text: String): Int
+        {
+            var inSingle = false
+            var inDouble = false
+            var parenDepth = 0
+            var bracketDepth = 0
+
+            for (i in text.indices)
+            {
+                val c = text[i]
+                if (inSingle)
+                {
+                    if (c == '\'') inSingle = false
+                    continue
+                }
+                if (inDouble)
+                {
+                    if (c == '"') inDouble = false
+                    continue
+                }
+                if (c == '\'')
+                {
+                    inSingle = true
+                    continue
+                }
+                if (c == '"')
+                {
+                    inDouble = true
+                    continue
+                }
+                if (c == '(')
+                {
+                    parenDepth++
+                    continue
+                }
+                if (c == ')')
+                {
+                    if (parenDepth > 0) parenDepth--
+                    continue
+                }
+                if (c == '[')
+                {
+                    bracketDepth++
+                    continue
+                }
+                if (c == ']')
+                {
+                    if (bracketDepth > 0) bracketDepth--
+                    continue
+                }
+
+                if (c == '=' && parenDepth == 0 && bracketDepth == 0)
+                {
+                    val prev = if (i > 0) text[i - 1] else ' '
+                    val next = if (i + 1 < text.length) text[i + 1] else ' '
+                    if (prev != '=' && prev != '!' && prev != '<' && prev != '>' && prev != '+' && prev != '-' && prev != '*' && prev != '/' && prev != '&' &&
+                        next != '=' && next != '>')
+                    {
+                        return i
+                    }
+                    if ((prev == '+' || prev == '-' || prev == '*' || prev == '/' || prev == '&') && next != '=')
+                    {
+                        return i
+                    }
+                }
+            }
+            return -1
+        }
+
+        private fun isValidAssignmentLhs(lhs: String): Boolean
+        {
+            if (lhs.isEmpty()) return false
+
+            if (lhs.lowercase().startsWith("param"))
+            {
+                return true
+            }
+
+            val varPattern = Pattern.compile(
+                """(?i)^(?:var\s+)?(?:(?:string|numeric|number|boolean|bool|array|struct|query|date|any|[A-Za-z0-9_$.]+)\s+)?(?:(?:local|variables|this|request|session|application|arguments)\.)?[A-Za-z0-9_]+$"""
+            )
+            return varPattern.matcher(lhs).matches()
         }
     }
 }

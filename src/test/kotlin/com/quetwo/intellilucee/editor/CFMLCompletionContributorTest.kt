@@ -488,4 +488,196 @@ class CFMLCompletionContributorTest : BasePlatformTestCase()
             """.trimIndent()
         )
     }
+
+    @Test
+    fun testAssignmentPopulatesDocumentFunctionsAndVariablesInScript()
+    {
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            function calculateTotal(numeric rate, numeric amount) {
+                return rate * amount;
+            }
+            function getStoreName() {
+                return "MyStore";
+            }
+            var taxRate = 0.05;
+            var finalTotal = <caret>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("calculateTotal"))
+        assertTrue(lookupStrings.contains("getStoreName"))
+        assertTrue(lookupStrings.contains("taxRate"))
+        assertTrue(lookupStrings.contains("finalTotal"))
+    }
+
+    @Test
+    fun testAssignmentPopulatesDocumentFunctionsAndVariablesInTag()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cffunction name="formatPrice">
+                <cfargument name="val" type="numeric">
+                <cfreturn "$#val#">
+            </cffunction>
+            <cfset basePrice = 100>
+            <cfset displayPrice = <caret>>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("formatPrice"))
+        assertTrue(lookupStrings.contains("basePrice"))
+        assertTrue(lookupStrings.contains("displayPrice"))
+    }
+
+    @Test
+    fun testAssignmentInFunctionScopesVariablesAndParameters()
+    {
+        myFixture.configureByText(
+            "UserService.cfc",
+            """
+            component {
+                property string appName;
+
+                function processUser(numeric userId, string userName) {
+                    var localStatus = "active";
+                    var result = <caret>
+                }
+
+                function otherFunction(string otherParam) {
+                    var otherLocal = 123;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        // Should contain component functions
+        assertTrue(lookupStrings!!.contains("processUser"))
+        assertTrue(lookupStrings.contains("otherFunction"))
+        // Should contain component property
+        assertTrue(lookupStrings.contains("appName"))
+        // Should contain current function's parameters and local variables
+        assertTrue(lookupStrings.contains("userId"))
+        assertTrue(lookupStrings.contains("userName"))
+        assertTrue(lookupStrings.contains("localStatus"))
+        assertTrue(lookupStrings.contains("result"))
+        // Should NOT contain other function's parameters and local variables
+        assertFalse(lookupStrings.contains("otherParam"))
+        assertFalse(lookupStrings.contains("otherLocal"))
+    }
+
+    @Test
+    fun testAssignmentSelectFunctionWithParametersInsertsSignature()
+    {
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            function calculateTotal(numeric rate, numeric amount) {
+                return rate * amount;
+            }
+            var result = <caret>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val calcElement = elements!!.first { it.lookupString == "calculateTotal" }
+        myFixture.lookup.currentItem = calcElement
+        myFixture.type('\n')
+
+        myFixture.checkResult(
+            """
+            function calculateTotal(numeric rate, numeric amount) {
+                return rate * amount;
+            }
+            var result = calculateTotal(<caret>)
+            """.trimIndent()
+        )
+    }
+
+    @Test
+    fun testAssignmentSelectFunctionWithoutParametersInsertsSignature()
+    {
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            function getVersion() {
+                return "1.0.0";
+            }
+            var v = <caret>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val getVerElement = elements!!.first { it.lookupString == "getVersion" }
+        myFixture.lookup.currentItem = getVerElement
+        myFixture.type('\n')
+
+        myFixture.checkResult(
+            """
+            function getVersion() {
+                return "1.0.0";
+            }
+            var v = getVersion()<caret>
+            """.trimIndent()
+        )
+    }
+
+    @Test
+    fun testAssignmentSelectVariableDoesNotInsertParentheses()
+    {
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            var greeting = "Hello";
+            var message = <caret>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val greetingElement = elements!!.first { it.lookupString == "greeting" }
+        myFixture.lookup.currentItem = greetingElement
+        myFixture.type('\n')
+
+        myFixture.checkResult(
+            """
+            var greeting = "Hello";
+            var message = greeting<caret>
+            """.trimIndent()
+        )
+    }
+
+    @Test
+    fun testAssignmentInCfparamDefaultPopulatesLookup()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfset defaultTimeout = 30>
+            <cfparam name="requestTimeout" default="<caret>">
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("defaultTimeout"))
+    }
 }
