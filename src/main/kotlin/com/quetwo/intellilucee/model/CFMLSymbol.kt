@@ -2,6 +2,14 @@ package com.quetwo.intellilucee.model
 
 import com.intellij.openapi.util.TextRange
 
+enum class CFMLAccessType
+{
+    PUBLIC,
+    PRIVATE,
+    PACKAGE,
+    REMOTE
+}
+
 sealed interface CFMLSymbol
 {
     val name: String
@@ -13,7 +21,8 @@ data class CFMLFunctionDeclaration(
     val nameRange: TextRange,
     override val range: TextRange,
     val bodyRange: TextRange?,
-    val parameters: List<CFMLVariableDeclaration> = emptyList()
+    val parameters: List<CFMLVariableDeclaration> = emptyList(),
+    val access: CFMLAccessType = CFMLAccessType.PUBLIC
 ) : CFMLSymbol
 
 data class CFMLFunctionCall(

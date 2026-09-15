@@ -165,18 +165,19 @@ object CFMLModelParser
     {
         // 1. Named functions: [modifiers] function [name] ( [params] )
         val funcPattern = Pattern.compile(
-            """(?i)(?:^|[\s;{}])(?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*function\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)"""
+            """(?i)(?:^|[\s;{}])((?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*)function\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)"""
         )
         val matcher = funcPattern.matcher(text)
         while (matcher.find())
         {
-            val name = matcher.group(1)
-            val nameStart = matcher.start(1)
-            val nameEnd = matcher.end(1)
+            val modifiersText = matcher.group(1) ?: ""
+            val name = matcher.group(2)
+            val nameStart = matcher.start(2)
+            val nameEnd = matcher.end(2)
             if (isInsideRanges(nameStart, commentRanges)) continue
 
-            val paramsText = matcher.group(2)
-            val paramsStart = matcher.start(2)
+            val paramsText = matcher.group(3)
+            val paramsStart = matcher.start(3)
 
             // Find function body { ... }
             var bodyRange: TextRange? = null
@@ -192,10 +193,17 @@ object CFMLModelParser
                 }
             }
 
+            val afterParamsText = if (openBrace > matcher.end()) {
+                text.substring(matcher.end(), openBrace)
+            } else {
+                ""
+            }
+            val access = parseAccessType(modifiersText, afterParamsText)
+
             val declRange = TextRange(matcher.start(), funcEnd)
             val nameRange = TextRange(nameStart, nameEnd)
             val paramDecls = mutableListOf<CFMLVariableDeclaration>()
-            val funcDecl = CFMLFunctionDeclaration(name, nameRange, declRange, bodyRange, paramDecls)
+            val funcDecl = CFMLFunctionDeclaration(name, nameRange, declRange, bodyRange, paramDecls, access)
             functions.add(funcDecl)
 
             // Parse parameters
@@ -313,6 +321,31 @@ object CFMLModelParser
         }
     }
 
+    fun parseAccessType(modifiers: String, extraAttrs: String = ""): CFMLAccessType
+    {
+        val combined = "$modifiers $extraAttrs"
+        val attrMatcher = Pattern.compile("""(?i)\baccess\s*=\s*["']?([A-Za-z0-9_]+)["']?""").matcher(combined)
+        if (attrMatcher.find())
+        {
+            return when (attrMatcher.group(1).lowercase())
+            {
+                "private" -> CFMLAccessType.PRIVATE
+                "package" -> CFMLAccessType.PACKAGE
+                "remote" -> CFMLAccessType.REMOTE
+                "public" -> CFMLAccessType.PUBLIC
+                else -> CFMLAccessType.PUBLIC
+            }
+        }
+
+        val tokens = modifiers.lowercase().split(Regex("[^a-zA-Z0-9_]+")).filter { it.isNotEmpty() }
+        if (tokens.contains("private")) return CFMLAccessType.PRIVATE
+        if (tokens.contains("package")) return CFMLAccessType.PACKAGE
+        if (tokens.contains("remote")) return CFMLAccessType.REMOTE
+        if (tokens.contains("public")) return CFMLAccessType.PUBLIC
+
+        return CFMLAccessType.PUBLIC
+    }
+
     private fun extractTagFunctions(
         text: String,
         commentRanges: List<TextRange>,
@@ -344,8 +377,9 @@ object CFMLModelParser
                     tagEnd = closeMatcher.end()
                     bodyRange = TextRange(matcher.end(), closeMatcher.start())
                 }
+                val access = parseAccessType("", attrs)
                 val paramDecls = mutableListOf<CFMLVariableDeclaration>()
-                val funcDecl = CFMLFunctionDeclaration(name, nameRange, TextRange(start, tagEnd), bodyRange, paramDecls)
+                val funcDecl = CFMLFunctionDeclaration(name, nameRange, TextRange(start, tagEnd), bodyRange, paramDecls, access)
                 functions.add(funcDecl)
 
                 // Check for <cfargument> inside this function

@@ -6,6 +6,8 @@ import com.intellij.psi.PsiElement
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.usageView.UsageInfo
 import com.intellij.util.Processor
+import com.quetwo.intellilucee.CFMLIcon
+import com.quetwo.intellilucee.model.CFMLAccessType
 import com.quetwo.intellilucee.psi.CFMLFunctionElement
 import com.quetwo.intellilucee.psi.CFMLPsiUtil
 import com.quetwo.intellilucee.psi.CFMLVariableElement
@@ -430,6 +432,88 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         // Only foo should have a marker, anonymous function shouldn't
         assertEquals(1, markers.size)
         assertEquals("foo", (CFMLPsiUtil.resolveSymbolAt(file, markers[0].element!!.textRange.startOffset) as? CFMLFunctionElement)?.name)
+    }
+
+    @Test
+    fun testFunctionMarkerIconsByAccessTypeScript() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                public function pubFunc() {}
+                function defaultPubFunc() {}
+                private function privFunc() {}
+                package function pkgFunc() {}
+                remote function remFunc() {}
+            }
+            """.trimIndent()
+        )
+
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(5, model.functions.size)
+        assertEquals(CFMLAccessType.PUBLIC, model.findFunctionDeclaration("pubFunc")?.access)
+        assertEquals(CFMLAccessType.PUBLIC, model.findFunctionDeclaration("defaultPubFunc")?.access)
+        assertEquals(CFMLAccessType.PRIVATE, model.findFunctionDeclaration("privFunc")?.access)
+        assertEquals(CFMLAccessType.PACKAGE, model.findFunctionDeclaration("pkgFunc")?.access)
+        assertEquals(CFMLAccessType.REMOTE, model.findFunctionDeclaration("remFunc")?.access)
+
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
+
+        assertEquals(5, markers.size)
+        val markerMap = markers.associate {
+            val name = (CFMLPsiUtil.resolveSymbolAt(file, it.element!!.textRange.startOffset) as? CFMLFunctionElement)?.name
+            name to it.icon
+        }
+
+        assertEquals(CFMLIcon.FUNCTION_PUBLIC, markerMap["pubFunc"])
+        assertEquals(CFMLIcon.FUNCTION_PUBLIC, markerMap["defaultPubFunc"])
+        assertEquals(CFMLIcon.FUNCTION_PRIVATE, markerMap["privFunc"])
+        assertEquals(CFMLIcon.FUNCTION_PRIVATE, markerMap["pkgFunc"])
+        assertEquals(CFMLIcon.FUNCTION_REMOTE, markerMap["remFunc"])
+    }
+
+    @Test
+    fun testFunctionMarkerIconsByAccessTypeTag() {
+        val file = myFixture.configureByText(
+            "test.cfm",
+            """
+            <cffunction name="pubTag" access="public"></cffunction>
+            <cffunction name="defaultTag"></cffunction>
+            <cffunction name="privTag" access="private"></cffunction>
+            <cffunction name="pkgTag" access="package"></cffunction>
+            <cffunction name="remTag" access="remote"></cffunction>
+            """.trimIndent()
+        )
+
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(5, model.functions.size)
+        assertEquals(CFMLAccessType.PUBLIC, model.findFunctionDeclaration("pubTag")?.access)
+        assertEquals(CFMLAccessType.PUBLIC, model.findFunctionDeclaration("defaultTag")?.access)
+        assertEquals(CFMLAccessType.PRIVATE, model.findFunctionDeclaration("privTag")?.access)
+        assertEquals(CFMLAccessType.PACKAGE, model.findFunctionDeclaration("pkgTag")?.access)
+        assertEquals(CFMLAccessType.REMOTE, model.findFunctionDeclaration("remTag")?.access)
+
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
+
+        assertEquals(5, markers.size)
+        val markerMap = markers.associate { marker ->
+            val func = model.functions.firstOrNull { f ->
+                marker.element != null && (f.nameRange.containsOffset(marker.element!!.textRange.startOffset) ||
+                        f.range.containsOffset(marker.element!!.textRange.startOffset) ||
+                        marker.element!!.textRange.contains(f.nameRange.startOffset))
+            }
+            func?.name to marker.icon
+        }
+
+        assertEquals(CFMLIcon.FUNCTION_PUBLIC, markerMap["pubTag"])
+        assertEquals(CFMLIcon.FUNCTION_PUBLIC, markerMap["defaultTag"])
+        assertEquals(CFMLIcon.FUNCTION_PRIVATE, markerMap["privTag"])
+        assertEquals(CFMLIcon.FUNCTION_PRIVATE, markerMap["pkgTag"])
+        assertEquals(CFMLIcon.FUNCTION_REMOTE, markerMap["remTag"])
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.openapi.editor.markup.GutterIconRenderer
 import com.intellij.psi.PsiElement
 import com.quetwo.intellilucee.CFMLIcon
+import com.quetwo.intellilucee.model.CFMLAccessType
 import com.quetwo.intellilucee.psi.CFMLPsiUtil
 
 class CFMLFunctionUsageLineMarkerProvider : LineMarkerProvider
@@ -56,10 +57,17 @@ class CFMLFunctionUsageLineMarkerProvider : LineMarkerProvider
                     }
                 }
 
+                val icon = when (func.access)
+                {
+                    CFMLAccessType.PUBLIC -> CFMLIcon.FUNCTION_PUBLIC
+                    CFMLAccessType.PRIVATE, CFMLAccessType.PACKAGE -> CFMLIcon.FUNCTION_PRIVATE
+                    CFMLAccessType.REMOTE -> CFMLIcon.FUNCTION_REMOTE
+                }
+
                 val marker = LineMarkerInfo(
                     targetElement,
                     targetElement.textRange,
-                    CFMLIcon.FILE,
+                    icon,
                     { tooltip },
                     navHandler,
                     GutterIconRenderer.Alignment.LEFT,
