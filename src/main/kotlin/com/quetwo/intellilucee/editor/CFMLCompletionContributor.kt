@@ -12,6 +12,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
+import com.quetwo.intellilucee.CFMLIcon
 import com.quetwo.intellilucee.model.CFMLDocumentModel
 import com.quetwo.intellilucee.model.CFMLModelParser
 import com.quetwo.intellilucee.psi.CFMLPsiUtil
@@ -25,6 +26,7 @@ class CFMLCompletionContributor : CompletionContributor()
 {
 
     data class PrecedingVarInfo(val varName: String, val dotOffset: Int)
+    data class ComponentCompletionInfo(val prefix: String)
 
     override fun fillCompletionVariants(parameters: CompletionParameters, result: CompletionResultSet)
     {
@@ -36,6 +38,16 @@ class CFMLCompletionContributor : CompletionContributor()
 
         val chars = parameters.editor.document.charsSequence
         val posOffset = parameters.position.textRange.startOffset
+
+        val componentInfo = findComponentCompletion(chars, posOffset)
+            ?: findComponentCompletion(chars, parameters.offset)
+
+        if (componentInfo != null)
+        {
+            fillComponentVariants(file, componentInfo, result)
+            return
+        }
+
         val varInfo = findPrecedingVariable(chars, posOffset)
             ?: findPrecedingVariable(chars, parameters.offset)
 
@@ -83,6 +95,59 @@ class CFMLCompletionContributor : CompletionContributor()
         {
             fillAssignmentVariants(parameters, chars, posOffset, result)
         }
+    }
+
+    private fun fillComponentVariants(
+        file: PsiFile,
+        componentInfo: ComponentCompletionInfo,
+        result: CompletionResultSet
+    )
+    {
+        val project = file.project
+        var componentList = PathUtils.ListAllComponents(project)
+        if (componentList.isEmpty())
+        {
+            val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
+            if (vFile != null)
+            {
+                var root = if (vFile.isDirectory) vFile else vFile.parent
+                while (root?.parent != null)
+                {
+                    root = root.parent
+                }
+                if (root != null)
+                {
+                    componentList = PathUtils.ListAllComponents(root)
+                }
+            }
+        }
+
+        val addedNames = mutableSetOf<String>()
+        val resultSet = if (componentInfo.prefix.isNotEmpty())
+        {
+            result.withPrefixMatcher(componentInfo.prefix)
+        }
+        else
+        {
+            result
+        }
+
+        for (descriptor in componentList)
+        {
+            val lookupText = descriptor.dotNotation?.takeIf { it.isNotBlank() }
+                ?: descriptor.cfcPath?.nameWithoutExtension?.takeIf { it.isNotBlank() }
+                ?: descriptor.file?.nameWithoutExtension?.takeIf { it.isNotBlank() }
+                ?: continue
+
+            if (addedNames.add(lookupText))
+            {
+                val element = LookupElementBuilder.create(lookupText)
+                    .withIcon(CFMLIcon.FILE_CFC)
+                    .withTypeText("component", true)
+                resultSet.addElement(PrioritizedLookupElement.withPriority(element, 1000.0))
+            }
+        }
+        result.stopHere()
     }
 
     private fun fillAssignmentVariants(
@@ -743,6 +808,232 @@ class CFMLCompletionContributor : CompletionContributor()
                 """(?i)^(?:var\s+)?(?:(?:string|numeric|number|boolean|bool|array|struct|query|date|any|[A-Za-z0-9_$.]+)\s+)?(?:(?:local|variables|this|request|session|application|arguments)\.)?[A-Za-z0-9_]+$"""
             )
             return varPattern.matcher(lhs).matches()
+        }
+
+        fun findComponentCompletion(chars: CharSequence, offset: Int): ComponentCompletionInfo?
+        {
+            return findComponentTagCompletion(chars, offset)
+                ?: findFunctionCallComponentCompletion(chars, offset)
+                ?: findScriptCfobjectCompletion(chars, offset)
+        }
+
+        fun findComponentTagCompletion(chars: CharSequence, offset: Int): ComponentCompletionInfo?
+        {
+            if (offset < 0 || offset > chars.length) return null
+
+            var i = offset - 1
+            while (i >= 0)
+            {
+                val c = chars[i]
+                if (c == '>')
+                {
+                    return null
+                }
+                if (c == '<')
+                {
+                    break
+                }
+                i--
+            }
+
+            if (i < 0 || chars[i] != '<')
+            {
+                return null
+            }
+
+            val tagStart = i
+            val tagChunk = chars.subSequence(tagStart, offset).toString()
+
+            if (!Regex("""(?i)^<\s*cfobject\b""").containsMatchIn(tagChunk))
+            {
+                return null
+            }
+
+            val attrMatch = Regex("""(?i)\bcomponent\s*=\s*(["']?)([^"'>]*)$""").find(tagChunk)
+                ?: return null
+
+            return ComponentCompletionInfo(attrMatch.groupValues[2].trim())
+        }
+
+        fun findFunctionCallComponentCompletion(chars: CharSequence, offset: Int): ComponentCompletionInfo?
+        {
+            if (offset <= 0 || offset > chars.length) return null
+
+            var i = offset - 1
+            var parenDepth = 0
+            var inSingle = false
+            var inDouble = false
+            var openParenIndex = -1
+
+            while (i >= 0)
+            {
+                val c = chars[i]
+                if (c == '\'' && !inDouble)
+                {
+                    inSingle = !inSingle
+                }
+                else if (c == '"' && !inSingle)
+                {
+                    inDouble = !inDouble
+                }
+                else if (!inSingle && !inDouble)
+                {
+                    if (c == ')')
+                    {
+                        parenDepth++
+                    }
+                    else if (c == '(')
+                    {
+                        if (parenDepth > 0)
+                        {
+                            parenDepth--
+                        }
+                        else
+                        {
+                            openParenIndex = i
+                            break
+                        }
+                    }
+                    else if (c == ';' || c == '{' || c == '}')
+                    {
+                        break
+                    }
+                }
+                i--
+            }
+
+            if (openParenIndex < 0) return null
+
+            var fnEnd = openParenIndex - 1
+            while (fnEnd >= 0 && (chars[fnEnd] == ' ' || chars[fnEnd] == '\t' || chars[fnEnd] == '\n' || chars[fnEnd] == '\r'))
+            {
+                fnEnd--
+            }
+            if (fnEnd < 0) return null
+
+            var fnStart = fnEnd
+            while (fnStart >= 0 && (chars[fnStart].isLetterOrDigit() || chars[fnStart] == '_' || chars[fnStart] == '$'))
+            {
+                fnStart--
+            }
+            fnStart++
+
+            if (fnStart > fnEnd) return null
+
+            val functionName = chars.subSequence(fnStart, fnEnd + 1).toString()
+            val isCreateComponent = functionName.equals("createComponent", ignoreCase = true)
+            val isCreateObject = functionName.equals("createObject", ignoreCase = true)
+            val isCfobjectFn = functionName.equals("cfobject", ignoreCase = true)
+
+            if (!isCreateComponent && !isCreateObject && !isCfobjectFn)
+            {
+                return null
+            }
+
+            val argsInside = chars.subSequence(openParenIndex + 1, offset).toString()
+            val argsList = splitArguments(argsInside)
+            val currentArg = if (argsList.isNotEmpty()) argsList.last() else ""
+
+            if (isCreateComponent)
+            {
+                val namedMatch = Regex("""(?i)^\s*component\s*=\s*(["']?)(.*)$""").find(currentArg)
+                if (namedMatch != null)
+                {
+                    return ComponentCompletionInfo(cleanPrefix(namedMatch.groupValues[2]))
+                }
+
+                if (Regex("""(?i)^\s*[a-zA-Z0-9_]+\s*=""").containsMatchIn(currentArg))
+                {
+                    return null
+                }
+
+                if (argsList.size <= 1)
+                {
+                    return ComponentCompletionInfo(cleanPrefix(currentArg))
+                }
+                if (argsList.size == 2)
+                {
+                    val firstArg = unquote(argsList[0]).trim()
+                    if (firstArg.equals("component", ignoreCase = true))
+                    {
+                        return ComponentCompletionInfo(cleanPrefix(currentArg))
+                    }
+                }
+            }
+            else if (isCreateObject)
+            {
+                val namedMatch = Regex("""(?i)^\s*component\s*=\s*(["']?)(.*)$""").find(currentArg)
+                if (namedMatch != null)
+                {
+                    return ComponentCompletionInfo(cleanPrefix(namedMatch.groupValues[2]))
+                }
+
+                if (argsList.size == 2)
+                {
+                    val firstArg = unquote(argsList[0]).trim()
+                    if (firstArg.equals("component", ignoreCase = true))
+                    {
+                        if (!Regex("""(?i)^\s*[a-zA-Z0-9_]+\s*=""").containsMatchIn(currentArg))
+                        {
+                            return ComponentCompletionInfo(cleanPrefix(currentArg))
+                        }
+                    }
+                }
+                else if (argsList.size == 3)
+                {
+                    val secondArg = unquote(argsList[1]).trim()
+                    if (secondArg.equals("component", ignoreCase = true))
+                    {
+                        if (!Regex("""(?i)^\s*[a-zA-Z0-9_]+\s*=""").containsMatchIn(currentArg))
+                        {
+                            return ComponentCompletionInfo(cleanPrefix(currentArg))
+                        }
+                    }
+                }
+            }
+            else if (isCfobjectFn)
+            {
+                val namedMatch = Regex("""(?i)^\s*component\s*=\s*(["']?)(.*)$""").find(currentArg)
+                if (namedMatch != null)
+                {
+                    return ComponentCompletionInfo(cleanPrefix(namedMatch.groupValues[2]))
+                }
+            }
+
+            return null
+        }
+
+        fun findScriptCfobjectCompletion(chars: CharSequence, offset: Int): ComponentCompletionInfo?
+        {
+            if (offset <= 0 || offset > chars.length) return null
+
+            var i = offset - 1
+            while (i >= 0)
+            {
+                val c = chars[i]
+                if (c == ';' || c == '{' || c == '}')
+                {
+                    break
+                }
+                i--
+            }
+            val stmtStart = i + 1
+            val stmtChunk = chars.subSequence(stmtStart, offset).toString().trimStart()
+
+            if (!stmtChunk.matches(Regex("""(?i)^cfobject\b.*""")))
+            {
+                return null
+            }
+
+            val attrMatch = Regex("""(?i)\bcomponent\s*=\s*(["']?)([^"';)]*)$""").find(stmtChunk)
+                ?: return null
+
+            return ComponentCompletionInfo(cleanPrefix(attrMatch.groupValues[2]))
+        }
+
+        private fun cleanPrefix(raw: String): String
+        {
+            return raw.trim().trimStart('"', '\'').trim()
         }
     }
 }

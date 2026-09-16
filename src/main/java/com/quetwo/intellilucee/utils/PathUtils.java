@@ -825,18 +825,77 @@ public class PathUtils
     @NotNull
     public static List<CFCDescriptor> ListAllComponents(@Nullable VirtualFile workspaceRoot)
     {
-        if (workspaceRoot == null)
+        List<CFCDescriptor> descriptors = new ArrayList<>();
+        if (workspaceRoot == null || !workspaceRoot.isValid())
         {
-            return new ArrayList<>();
+            return descriptors;
         }
+
         try
         {
             return ListAllComponents(workspaceRoot.toNioPath());
         }
-        catch (UnsupportedOperationException e)
+        catch (UnsupportedOperationException | IllegalArgumentException ignored)
         {
-            return ListAllComponents(workspaceRoot.getPath());
         }
+
+        if (!workspaceRoot.isDirectory())
+        {
+            String fileName = workspaceRoot.getName();
+            if (fileName.toLowerCase().endsWith(".cfc"))
+            {
+                descriptors.add(new CFCDescriptor(workspaceRoot.getPath(), PathToDotNotation(workspaceRoot)));
+            }
+            return descriptors;
+        }
+
+        Queue<VirtualFile> queue = new ArrayDeque<>();
+        Set<VirtualFile> visited = new HashSet<>();
+
+        visited.add(workspaceRoot);
+        queue.add(workspaceRoot);
+
+        while (!queue.isEmpty())
+        {
+            VirtualFile currentDir = queue.poll();
+            if (currentDir == null)
+            {
+                continue;
+            }
+
+            List<VirtualFile> subDirs = new ArrayList<>();
+            List<VirtualFile> cfcFiles = new ArrayList<>();
+
+            for (VirtualFile child : currentDir.getChildren())
+            {
+                if (child.isDirectory())
+                {
+                    if (visited.add(child))
+                    {
+                        subDirs.add(child);
+                    }
+                }
+                else
+                {
+                    String name = child.getName();
+                    if (name.toLowerCase().endsWith(".cfc"))
+                    {
+                        cfcFiles.add(child);
+                    }
+                }
+            }
+
+            subDirs.sort(Comparator.comparing(VirtualFile::getPath, String.CASE_INSENSITIVE_ORDER));
+            queue.addAll(subDirs);
+
+            cfcFiles.sort(Comparator.comparing(VirtualFile::getPath, String.CASE_INSENSITIVE_ORDER));
+            for (VirtualFile cfcFile : cfcFiles)
+            {
+                descriptors.add(new CFCDescriptor(cfcFile.getPath(), PathToDotNotation(cfcFile)));
+            }
+        }
+
+        return descriptors;
     }
 
     @NotNull

@@ -680,4 +680,175 @@ class CFMLCompletionContributorTest : BasePlatformTestCase()
         assertNotNull(lookupStrings)
         assertTrue(lookupStrings!!.contains("defaultTimeout"))
     }
+
+    @Test
+    fun testCompletionCfobjectTagComponentAttribute()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/User.cfc", "component {}")
+        myFixture.addFileToProject("services/AuthService.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfset myVar = 100>
+            <cfobject component="<caret>" name="userObj">
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.User"))
+        assertTrue(lookupStrings.contains("services.AuthService"))
+        assertTrue(lookupStrings.contains("Application"))
+        // Should only contain components, not unrelated variables
+        assertFalse(lookupStrings.contains("myVar"))
+    }
+
+    @Test
+    fun testCompletionCfobjectTagWithTypeAndComponent()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/Product.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfobject type="component" component="<caret>">
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.Product"))
+    }
+
+    @Test
+    fun testCompletionCfobjectTagWithSingleQuotes()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/Order.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfobject component='<caret>'>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.Order"))
+    }
+
+    @Test
+    fun testCompletionCreateComponentPositional()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/User.cfc", "component {}")
+        myFixture.addFileToProject("services/AuthService.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            var otherVar = "hello";
+            var comp = createComponent("<caret>");
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.User"))
+        assertTrue(lookupStrings.contains("services.AuthService"))
+        assertTrue(lookupStrings.contains("Application"))
+        assertFalse(lookupStrings.contains("otherVar"))
+    }
+
+    @Test
+    fun testCompletionCreateComponentNamed()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/User.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            var comp = createComponent(component="<caret>");
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.User"))
+    }
+
+    @Test
+    fun testCompletionCreateComponentTypedPositional()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/User.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            var comp = createComponent("component", "<caret>");
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.User"))
+    }
+
+    @Test
+    fun testCompletionCreateObjectComponent()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/User.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            var obj = createObject("component", "<caret>");
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.User"))
+    }
+
+    @Test
+    fun testCompletionScriptCfobject()
+    {
+        myFixture.addFileToProject("Application.cfc", "component {}")
+        myFixture.addFileToProject("models/User.cfc", "component {}")
+
+        myFixture.configureByText(
+            "test.cfs",
+            """
+            cfobject component="<caret>" name="userObj";
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements?.map { it.lookupString }
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("models.User"))
+    }
 }
