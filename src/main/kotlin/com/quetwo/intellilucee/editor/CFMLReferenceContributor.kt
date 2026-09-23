@@ -30,18 +30,27 @@ class CFMLReferenceContributor : PsiReferenceContributor()
                     val refs = mutableListOf<PsiReference>()
 
                     // Find function calls within this element
-                    for (call in model.functionCalls)
+                    val calls = model.functionCalls
+                    var callIdx = binarySearchFirstCallAfter(calls, elementRange.startOffset)
+                    while (callIdx < calls.size)
                     {
+                        val call = calls[callIdx]
+                        if (call.range.startOffset > elementRange.endOffset) break
                         if (elementRange.contains(call.range))
                         {
                             val relativeRange = call.range.shiftRight(-elementRange.startOffset)
                             refs.add(CFMLPsiReference(element, relativeRange))
                         }
+                        callIdx++
                     }
 
                     // Find variable usages within this element
-                    for (usage in model.variableUsages)
+                    val usages = model.variableUsages
+                    var usageIdx = binarySearchFirstUsageAfter(usages, elementRange.startOffset)
+                    while (usageIdx < usages.size)
                     {
+                        val usage = usages[usageIdx]
+                        if (usage.range.startOffset > elementRange.endOffset && usage.nameRange.startOffset > elementRange.endOffset) break
                         if (elementRange.contains(usage.nameRange))
                         {
                             val relativeRange = usage.nameRange.shiftRight(-elementRange.startOffset)
@@ -57,11 +66,59 @@ class CFMLReferenceContributor : PsiReferenceContributor()
                             val relativeRange = TextRange(0, elementRange.length)
                             refs.add(CFMLPsiReference(element, relativeRange))
                         }
+                        usageIdx++
                     }
 
                     return refs.toTypedArray()
                 }
             }
         )
+    }
+
+    companion object
+    {
+        private fun binarySearchFirstCallAfter(calls: List<com.quetwo.intellilucee.model.CFMLFunctionCall>, startOffset: Int): Int
+        {
+            var low = 0
+            var high = calls.size - 1
+            var result = calls.size
+            while (low <= high)
+            {
+                val mid = (low + high) ushr 1
+                if (calls[mid].range.endOffset >= startOffset)
+                {
+                    result = mid
+                    high = mid - 1
+                }
+                else
+                {
+                    low = mid + 1
+                }
+            }
+            return result
+        }
+
+        private fun binarySearchFirstUsageAfter(usages: List<com.quetwo.intellilucee.model.CFMLVariableUsage>, startOffset: Int): Int
+        {
+            var low = 0
+            var high = usages.size - 1
+            var result = usages.size
+            while (low <= high)
+            {
+                val mid = (low + high) ushr 1
+                val u = usages[mid]
+                val maxEnd = maxOf(u.range.endOffset, u.nameRange.endOffset)
+                if (maxEnd >= startOffset)
+                {
+                    result = mid
+                    high = mid - 1
+                }
+                else
+                {
+                    low = mid + 1
+                }
+            }
+            return result
+        }
     }
 }

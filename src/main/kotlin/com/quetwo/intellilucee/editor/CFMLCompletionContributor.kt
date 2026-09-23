@@ -157,7 +157,8 @@ class CFMLCompletionContributor : CompletionContributor()
         result: CompletionResultSet
     )
     {
-        val model = CFMLModelParser.parse(chars.toString())
+        val file = parameters.originalFile
+        val model = if (CFMLPsiUtil.isCFMLFile(file)) CFMLPsiUtil.getModel(file) else CFMLModelParser.parse(chars.toString())
         val currentFunc = model.findEnclosingFunction(posOffset)
             ?: model.findEnclosingFunction(parameters.offset)
 

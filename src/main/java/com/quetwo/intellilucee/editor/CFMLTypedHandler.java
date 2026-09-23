@@ -259,7 +259,7 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
             }
             else if (c == '<' && i + 1 < chars.length() && (Character.isLetter(chars.charAt(i + 1)) || chars.charAt(i + 1) == '/'))
             {
-                int gtPos = chars.toString().indexOf('>', i + 1);
+                int gtPos = indexOfChar(chars, '>', i + 1);
                 if (gtPos >= 0 && gtPos < bracePos)
                 {
                     stmtStart = gtPos + 1;
@@ -483,12 +483,11 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
 
     private static boolean isFunctionKeywordAt(@NotNull CharSequence chars, int pos)
     {
-        if (pos + 8 > chars.length())
+        if (pos < 0 || pos + 8 > chars.length())
         {
             return false;
         }
-        String sub = chars.subSequence(pos, pos + 8).toString();
-        if (!sub.equalsIgnoreCase("function"))
+        if (!startsWithIgnoreCase(chars, pos, "function"))
         {
             return false;
         }
@@ -504,6 +503,37 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
         {
             char next = chars.charAt(pos + 8);
             if (Character.isLetterOrDigit(next) || next == '_' || next == '$')
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int indexOfChar(@NotNull CharSequence chars, char target, int fromIndex)
+    {
+        int len = chars.length();
+        for (int k = fromIndex; k < len; k++)
+        {
+            if (chars.charAt(k) == target)
+            {
+                return k;
+            }
+        }
+        return -1;
+    }
+
+    private static boolean startsWithIgnoreCase(@NotNull CharSequence chars, int offset, @NotNull String expected)
+    {
+        if (offset < 0 || offset + expected.length() > chars.length())
+        {
+            return false;
+        }
+        for (int i = 0; i < expected.length(); i++)
+        {
+            char c1 = chars.charAt(offset + i);
+            char c2 = expected.charAt(i);
+            if (c1 != c2 && Character.toLowerCase(c1) != Character.toLowerCase(c2))
             {
                 return false;
             }
@@ -737,11 +767,12 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
                     continue;
                 }
 
-                String name = chars.subSequence(tagStart, tagEnd).toString();
-                if (!name.toLowerCase().startsWith("cf"))
+                if (!startsWithIgnoreCase(chars, tagStart, "cf"))
                 {
                     continue;
                 }
+
+                String name = chars.subSequence(tagStart, tagEnd).toString();
 
                 boolean inSingleQuote = false;
                 boolean inDoubleQuote = false;
