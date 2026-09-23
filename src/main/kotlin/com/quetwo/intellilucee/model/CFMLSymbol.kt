@@ -57,19 +57,40 @@ class CFMLDocumentModel(
     val variableDeclarations: List<CFMLVariableDeclaration>,
     val variableUsages: List<CFMLVariableUsage>)
 {
+    private val functionUsageCounts: Map<String, Int> = buildMap {
+        for (call in functionCalls)
+        {
+            val key = call.name.lowercase()
+            put(key, (get(key) ?: 0) + 1)
+        }
+    }
+
+    private val functionDeclByName: Map<String, CFMLFunctionDeclaration> = buildMap {
+        for (func in functions)
+        {
+            val key = func.name.lowercase()
+            if (!containsKey(key))
+            {
+                put(key, func)
+            }
+        }
+    }
+
+    private val functionCallsByName: Map<String, List<CFMLFunctionCall>> = functionCalls.groupBy { it.name.lowercase() }
+
     fun findFunctionDeclaration(name: String): CFMLFunctionDeclaration?
     {
-        return functions.firstOrNull { it.name.equals(name, ignoreCase = true) }
+        return functionDeclByName[name.lowercase()]
     }
 
     fun findFunctionCalls(name: String): List<CFMLFunctionCall>
     {
-        return functionCalls.filter { it.name.equals(name, ignoreCase = true) }
+        return functionCallsByName[name.lowercase()] ?: emptyList()
     }
 
     fun getFunctionUsageCount(functionDecl: CFMLFunctionDeclaration): Int
     {
-        return functionCalls.count { it.name.equals(functionDecl.name, ignoreCase = true) }
+        return functionUsageCounts[functionDecl.name.lowercase()] ?: 0
     }
 
     fun findEnclosingFunctionHierarchy(offset: Int): List<CFMLFunctionDeclaration>

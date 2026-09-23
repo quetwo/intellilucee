@@ -21,13 +21,15 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
             {
                 if (element != file) return
                 val model = CFMLPsiUtil.getModel(file)
+                if (model.functions.isEmpty()) return
                 val fileText = file.text
+                val commentRanges = CFMLModelParser.findCommentRanges(fileText)
                 for (func in model.functions)
                 {
                     if (func.name.isBlank()) continue
                     val count = model.getFunctionUsageCount(func)
                     val text = if (count == 1) "1 use" else "$count uses"
-                    val offset = findFunctionInlayOffset(fileText, func)
+                    val offset = findFunctionInlayOffset(fileText, func, commentRanges)
                     sink.addPresentation(
                         InlineInlayPosition(offset, true),
                         null,
@@ -49,33 +51,70 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
          * - If the curly brace '{' is on the same line, before '{', but after the list of arguments.
          * - If the curly brace '{' is on a subsequent line, after the list of arguments on the declaration line.
          */
-        fun findFunctionInlayOffset(text: String, func: CFMLFunctionDeclaration): Int
+        @JvmStatic
+        @JvmOverloads
+        fun findFunctionInlayOffset(
+            text: String,
+            func: CFMLFunctionDeclaration,
+            commentRanges: List<com.intellij.openapi.util.TextRange> = CFMLModelParser.findCommentRanges(text)
+        ): Int
         {
-            val commentRanges = CFMLModelParser.findCommentRanges(text)
             val nameEnd = func.nameRange.endOffset.coerceAtMost(text.length)
             val declStart = func.range.startOffset.coerceAtMost(text.length)
 
             // 1. Check if it's a tag-based function (<cffunction ... >)
-            val prefix = if (declStart < nameEnd) text.substring(declStart, nameEnd) else ""
-            if (prefix.contains("<cffunction", ignoreCase = true) || text.substring(0, nameEnd).trimEnd().endsWith(">"))
+            var isTagFunc = false
+            if (declStart < nameEnd && text.regionMatches(declStart, "<cffunction", 0, 11, ignoreCase = true))
+            {
+                isTagFunc = true
+            }
+            else
+            {
+                var k = nameEnd - 1
+                while (k >= 0 && (text[k] == ' ' || text[k] == '\t' || text[k] == '\r' || text[k] == '\n'))
+                {
+                    k--
+                }
+                if (k >= 0 && text[k] == '>')
+                {
+                    isTagFunc = true
+                }
+            }
+
+            if (isTagFunc)
             {
                 // Find the closing '>' of the <cffunction> opening tag
-                for (i in nameEnd until text.length)
+                var i = nameEnd
+                val len = text.length
+                while (i < len)
                 {
-                    if (CFMLModelParser.isInsideRanges(i, commentRanges)) continue
+                    val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
+                    if (commentEnd > i)
+                    {
+                        i = commentEnd
+                        continue
+                    }
                     val c = text[i]
                     if (c == '>')
                     {
                         return i
                     }
+                    i++
                 }
             }
 
             // 2. Script function: find opening '(' and matching closing ')' for arguments list
             var openParen = -1
-            for (i in nameEnd until text.length)
+            var i = nameEnd
+            val len = text.length
+            while (i < len)
             {
-                if (CFMLModelParser.isInsideRanges(i, commentRanges)) continue
+                val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
+                if (commentEnd > i)
+                {
+                    i = commentEnd
+                    continue
+                }
                 val c = text[i]
                 if (c == '(')
                 {
@@ -86,16 +125,23 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
                 {
                     break
                 }
+                i++
             }
 
             var afterArgs = nameEnd
             if (openParen >= 0)
             {
                 var parenDepth = 0
-                for (i in openParen until text.length)
+                var j = openParen
+                while (j < len)
                 {
-                    if (CFMLModelParser.isInsideRanges(i, commentRanges)) continue
-                    val c = text[i]
+                    val commentEnd = CFMLModelParser.getCommentEndIfInside(j, commentRanges)
+                    if (commentEnd > j)
+                    {
+                        j = commentEnd
+                        continue
+                    }
+                    val c = text[j]
                     if (c == '(')
                     {
                         parenDepth++
@@ -105,35 +151,43 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
                         parenDepth--
                         if (parenDepth == 0)
                         {
-                            afterArgs = i + 1
+                            afterArgs = j + 1
                             break
                         }
                     }
+                    j++
                 }
             }
 
             // 3. Scan the remainder of the line after arguments to see if '{' is on the same line
             var lineEnd = text.length
             var braceOnSameLine = -1
-            for (i in afterArgs until text.length)
+            var k = afterArgs
+            while (k < len)
             {
-                if (CFMLModelParser.isInsideRanges(i, commentRanges)) continue
-                val c = text[i]
+                val commentEnd = CFMLModelParser.getCommentEndIfInside(k, commentRanges)
+                if (commentEnd > k)
+                {
+                    k = commentEnd
+                    continue
+                }
+                val c = text[k]
                 if (c == '\n' || c == '\r')
                 {
-                    lineEnd = i
+                    lineEnd = k
                     break
                 }
                 if (c == '{')
                 {
-                    braceOnSameLine = i
+                    braceOnSameLine = k
                     break
                 }
                 if (c == ';')
                 {
-                    lineEnd = i
+                    lineEnd = k
                     break
                 }
+                k++
             }
 
             if (braceOnSameLine >= 0)
