@@ -38,7 +38,9 @@ class CFMLComponentDotPathInlayHintsProvider : InlayHintsProvider
                 val dotPath = PathUtils.PathToDotNotation(virtualFile) ?: return
                 if (dotPath.isBlank()) return
 
-                val offset = findComponentOffset(file.text)
+                val model = CFMLPsiUtil.getModel(file)
+                val commentRanges = model.commentRanges.ifEmpty { CFMLModelParser.findCommentRanges(file.text) }
+                val offset = findComponentOffset(file.text, commentRanges)
                 sink.addPresentation(
                     InlineInlayPosition(offset, true),
                     null,
@@ -51,9 +53,12 @@ class CFMLComponentDotPathInlayHintsProvider : InlayHintsProvider
         }
     }
 
-    fun findComponentOffset(text: String): Int
+    @JvmOverloads
+    fun findComponentOffset(
+        text: String,
+        commentRanges: List<com.intellij.openapi.util.TextRange> = CFMLModelParser.findCommentRanges(text)
+    ): Int
     {
-        val commentRanges = CFMLModelParser.findCommentRanges(text)
 
         // 1. Tag component: <cfcomponent ... >
         val tagMatcher = TAG_COMPONENT_PATTERN.matcher(text)

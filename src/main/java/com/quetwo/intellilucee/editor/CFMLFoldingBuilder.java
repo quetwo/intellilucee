@@ -42,7 +42,8 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
         for (String keyword : FOLD_KEYWORDS)
         {
             int searchFrom = 0;
-            while (searchFrom < text.length())
+            int textLen = text.length();
+            while (searchFrom < textLen)
             {
                 int keywordStart = indexOfKeyword(text, keyword, searchFrom);
                 if (keywordStart < 0)
@@ -50,10 +51,26 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
                     break;
                 }
 
-                int openingBrace = text.indexOf('{', keywordStart + keyword.length());
+                int maxLookahead = Math.min(textLen, keywordStart + 2000);
+                int openingBrace = -1;
+                for (int k = keywordStart + keyword.length(); k < maxLookahead; k++)
+                {
+                    char c = text.charAt(k);
+                    if (c == ';')
+                    {
+                        break;
+                    }
+                    if (c == '{')
+                    {
+                        openingBrace = k;
+                        break;
+                    }
+                }
+
                 if (openingBrace < 0)
                 {
-                    break;
+                    searchFrom = keywordStart + keyword.length();
+                    continue;
                 }
 
                 int closingBrace = findMatchingBrace(text, openingBrace);
@@ -345,7 +362,11 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
 
                 if (cursor > nameStart)
                 {
-                    String tagName = text.substring(nameStart, cursor).toLowerCase(Locale.ROOT);
+                    boolean isCfTag = (cursor - nameStart >= 2) &&
+                            (text.charAt(nameStart) == 'c' || text.charAt(nameStart) == 'C') &&
+                            (text.charAt(nameStart + 1) == 'f' || text.charAt(nameStart + 1) == 'F');
+
+                    String tagName = isCfTag ? text.substring(nameStart, cursor).toLowerCase(Locale.ROOT) : null;
                     boolean isSelfClosing = false;
 
                     while (cursor < len)
@@ -390,7 +411,10 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
                         }
                     }
 
-                    tags.add(new TagInfo(tagName, tagStart, cursor, isClosing, isSelfClosing));
+                    if (isCfTag && tagName != null)
+                    {
+                        tags.add(new TagInfo(tagName, tagStart, cursor, isClosing, isSelfClosing));
+                    }
                     i = cursor;
                     continue;
                 }
@@ -447,9 +471,32 @@ public class CFMLFoldingBuilder extends FoldingBuilderEx
     private int findMatchingBrace(String text, int openingBrace)
     {
         int depth = 0;
-        for (int i = openingBrace; i < text.length(); i++)
+        int len = text.length();
+        boolean inSingle = false;
+        boolean inDouble = false;
+        for (int i = openingBrace; i < len; i++)
         {
             char c = text.charAt(i);
+            if (inSingle)
+            {
+                if (c == '\'') inSingle = false;
+                continue;
+            }
+            if (inDouble)
+            {
+                if (c == '"') inDouble = false;
+                continue;
+            }
+            if (c == '\'')
+            {
+                inSingle = true;
+                continue;
+            }
+            if (c == '"')
+            {
+                inDouble = true;
+                continue;
+            }
             if (c == '{')
             {
                 depth++;

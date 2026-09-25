@@ -37,9 +37,13 @@ class CFMLFunctionUsageLineMarkerProvider : LineMarkerProvider
         val isWholeFile = file in elementSet
         val model = CFMLPsiUtil.getModel(file)
 
+        val minOffset = if (!isWholeFile) elements.minOf { it.textRange.startOffset } else 0
+        val maxOffset = if (!isWholeFile) elements.maxOf { it.textRange.endOffset } else Int.MAX_VALUE
+
         for (func in model.functions)
         {
             if (func.name.isEmpty()) continue
+            if (!isWholeFile && (func.nameRange.endOffset < minOffset || func.nameRange.startOffset > maxOffset)) continue
             val targetElement = file.findElementAt(func.nameRange.startOffset) ?: if (isWholeFile) file else continue
             if (isWholeFile || targetElement in elementSet)
             {

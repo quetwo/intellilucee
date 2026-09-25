@@ -23,7 +23,7 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
                 val model = CFMLPsiUtil.getModel(file)
                 if (model.functions.isEmpty()) return
                 val fileText = file.text
-                val commentRanges = CFMLModelParser.findCommentRanges(fileText)
+                val commentRanges = model.commentRanges.ifEmpty { CFMLModelParser.findCommentRanges(fileText) }
                 for (func in model.functions)
                 {
                     if (func.name.isBlank()) continue
