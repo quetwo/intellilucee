@@ -66,10 +66,12 @@ class CFMLLargeFilePerformanceTest : BasePlatformTestCase() {
 
         val start = System.currentTimeMillis()
         // Type characters
-        myFixture.type(' ')
-        myFixture.type('+')
-        myFixture.type(' ')
-        myFixture.type('5')
+        for (k in 1..20) {
+            myFixture.type(' ')
+            myFixture.type('+')
+            myFixture.type(' ')
+            myFixture.type('5')
+        }
         val elapsed = System.currentTimeMillis() - start
 
         assertTrue("Typing in large CFM file should be fast (was ${elapsed}ms)", elapsed < 2000)
@@ -118,5 +120,36 @@ class CFMLLargeFilePerformanceTest : BasePlatformTestCase() {
         val elapsed = System.currentTimeMillis() - start
 
         assertTrue("Inlay hints offset calculations on large CFM should be fast (was ${elapsed}ms)", elapsed < 2000)
+    }
+
+    @Test
+    fun testLargeCfmFoldingPerformance() {
+        val largeContent = generateLargeCfmContent(200)
+        val file = myFixture.configureByText("largeFoldTest.cfm", largeContent)
+
+        val foldingBuilder = CFMLFoldingBuilder()
+        val start = System.currentTimeMillis()
+        val descriptors = foldingBuilder.buildFoldRegions(file, myFixture.editor.document, false)
+        val elapsed = System.currentTimeMillis() - start
+
+        assertTrue("Folding regions calculation on large CFM should be fast (was ${elapsed}ms)", elapsed < 2000)
+        assertTrue(descriptors.isNotEmpty())
+    }
+
+    @Test
+    fun testLargeCfmLineMarkerPerformance() {
+        val largeContent = generateLargeCfmContent(200)
+        val file = myFixture.configureByText("largeLineMarkerTest.cfm", largeContent)
+
+        val provider = CFMLFunctionUsageLineMarkerProvider()
+        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+
+        // Benchmark typing scenario: daemon pass with single element around cursor
+        val elem = file.findElementAt(50)!!
+        val start = System.currentTimeMillis()
+        provider.collectSlowLineMarkers(listOf(elem), markers)
+        val elapsed = System.currentTimeMillis() - start
+
+        assertTrue("Single-element line marker pass on large CFM should be near-instant (was ${elapsed}ms)", elapsed < 500)
     }
 }

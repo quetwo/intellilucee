@@ -45,17 +45,30 @@ object CFMLModelParser
         // 5. Extract variable usages
         extractVariableUsages(text, commentRanges, functionDecls, varDecls, functionCalls, varUsages)
 
-        return CFMLDocumentModel(functionDecls, functionCalls, varDecls, varUsages)
+        return CFMLDocumentModel(functionDecls, functionCalls, varDecls, varUsages, commentRanges)
     }
 
     fun findInnermostEnclosingFunction(offset: Int, functions: List<CFMLFunctionDeclaration>): CFMLFunctionDeclaration?
     {
         if (functions.isEmpty()) return null
-        return functions
-            .filter { func ->
-                func.bodyRange?.containsOffset(offset) == true || func.range.containsOffset(offset)
+        var bestFunc: CFMLFunctionDeclaration? = null
+        var minLen = Int.MAX_VALUE
+        for (func in functions)
+        {
+            if (func.range.startOffset <= offset && offset <= func.range.endOffset)
+            {
+                if (func.bodyRange?.containsOffset(offset) == true || func.range.containsOffset(offset))
+                {
+                    val len = func.range.length
+                    if (len < minLen)
+                    {
+                        minLen = len
+                        bestFunc = func
+                    }
+                }
             }
-            .minByOrNull { it.range.length }
+        }
+        return bestFunc
     }
 
     fun isInsideRanges(offset: Int, ranges: List<TextRange>): Boolean
@@ -199,6 +212,44 @@ object CFMLModelParser
         return ranges
     }
 
+    private val SCRIPT_FUNC_PATTERN = Pattern.compile(
+        """(?i)(?:^|[\s;{}])((?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*)function\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)"""
+    )
+    private val ANON_FUNC_PATTERN = Pattern.compile(
+        """(?i)(?:^|[\s;{}(=,:])(?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*function\s*\(([^)]*)\)"""
+    )
+    private val ARROW_FUNC_PATTERN = Pattern.compile(
+        """(?i)(?:^|[\s;{}(=,:])(?:\(([^)]*)\)|([A-Za-z0-9_]+))\s*=>"""
+    )
+    private val PARAM_EXTRACT_PATTERN = Pattern.compile(
+        """(?i)(?:(?:required|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*([A-Za-z0-9_]+)(?:\s*=[^,]*)?"""
+    )
+    private val ACCESS_ATTR_PATTERN = Pattern.compile("""(?i)\baccess\s*=\s*["']?([A-Za-z0-9_]+)["']?""")
+    private val CFFUNCTION_PATTERN = Pattern.compile("""(?i)<cffunction\b([^>]*)>""", Pattern.DOTALL)
+    private val CFFUNCTION_CLOSE_PATTERN = Pattern.compile("""(?i)</cffunction>""")
+    private val CFARGUMENT_PATTERN = Pattern.compile("""(?i)<cfargument\b([^>]*)>""")
+    private val NAME_ATTR_PATTERN = Pattern.compile("""(?i)\bname\s*=\s*["']?([A-Za-z0-9_]+)["']?""")
+    private val PROP_PATTERN = Pattern.compile("""(?i)\bproperty\s+([^;]+);""")
+    private val VAR_STMT_PATTERN = Pattern.compile("""(?i)\bvar\s+""")
+    private val TYPED_DECL_PATTERN = Pattern.compile("""(?i)(?:^|[\s;{}])(string|numeric|number|boolean|bool|array|struct|query|date|any)\s+([A-Za-z0-9_]+)\s*(?:=|;|,|\))""")
+    private val FOR_VAR_PATTERN = Pattern.compile("""(?i)\bfor\s*\(\s*(?:var\s+)?([A-Za-z0-9_]+)\s*(?:in|=|;)""")
+    private val CATCH_PATTERN = Pattern.compile("""(?i)\bcatch\s*\(\s*(?:(?:any|[A-Za-z0-9_$.]+)\s+)?([A-Za-z0-9_]+)\s*\)""")
+    private val PARAM_PATTERN = Pattern.compile("""(?i)\bparam\s+(?:name\s*=\s*["']?((?:local\.)?([A-Za-z0-9_]+))["']?|(?:(?:string|numeric|number|boolean|bool|array|struct|query|date|any)\s+)?([A-Za-z0-9_]+)\s*=)""")
+    private val ASSIGN_PATTERN = Pattern.compile("""(?i)(?:^|[\s;{}])((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)(?!=)""")
+    private val VAR_ITEM_PATTERN = Pattern.compile("""(?i)((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*$""")
+    private val CFPROP_PATTERN = Pattern.compile("""(?i)<cfproperty\b([^>]*)>""")
+    private val CFSET_PATTERN = Pattern.compile("""(?i)<cfset\s+(?:var\s+)?((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)""", Pattern.DOTALL)
+    private val CFPARAM_PATTERN = Pattern.compile("""(?i)<cfparam\b([^>]*)>""")
+    private val CFPARAM_NAME_ATTR_PATTERN = Pattern.compile("""(?i)\bname\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""")
+    private val CFLOOP_PATTERN = Pattern.compile("""(?i)<cfloop\b([^>]*)>""")
+    private val CFLOOP_ATTR_PATTERN = Pattern.compile("""(?i)\b(?:index|item|query)\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""")
+    private val CFQUERY_PATTERN = Pattern.compile("""(?i)<cfquery\b([^>]*)>""")
+    private val CFCATCH_PATTERN = Pattern.compile("""(?i)<cfcatch\b([^>]*)>""")
+    private val CALL_PATTERN = Pattern.compile("""(?i)(?:^|[^A-Za-z0-9_$.])([A-Za-z0-9_]+)\s*\(""")
+    private val CFINVOKE_PATTERN = Pattern.compile("""(?i)<cfinvoke\b([^>]*)>""")
+    private val METHOD_ATTR_PATTERN = Pattern.compile("""(?i)\bmethod\s*=\s*["']?([A-Za-z0-9_]+)["']?""")
+    private val ID_PATTERN = Pattern.compile("""(?i)(?:(?:local|variables|arguments|session|application|request|this)\.)?([A-Za-z0-9_]+)""")
+
     private fun extractScriptFunctions(
         text: String,
         commentRanges: List<TextRange>,
@@ -206,17 +257,19 @@ object CFMLModelParser
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
         // 1. Named functions: [modifiers] function [name] ( [params] )
-        val funcPattern = Pattern.compile(
-            """(?i)(?:^|[\s;{}])((?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*)function\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)"""
-        )
-        val matcher = funcPattern.matcher(text)
+        val matcher = SCRIPT_FUNC_PATTERN.matcher(text)
         while (matcher.find())
         {
             val modifiersText = matcher.group(1) ?: ""
             val name = matcher.group(2)
             val nameStart = matcher.start(2)
             val nameEnd = matcher.end(2)
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!matcher.find(commentEnd)) break
+                continue
+            }
 
             val paramsText = matcher.group(3)
             val paramsStart = matcher.start(3)
@@ -253,14 +306,16 @@ object CFMLModelParser
         }
 
         // 2. Anonymous functions / Closures: function ( [params] ) { ... }
-        val anonPattern = Pattern.compile(
-            """(?i)(?:^|[\s;{}(=,:])(?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*function\s*\(([^)]*)\)"""
-        )
-        val anonMatcher = anonPattern.matcher(text)
+        val anonMatcher = ANON_FUNC_PATTERN.matcher(text)
         while (anonMatcher.find())
         {
             val start = anonMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!anonMatcher.find(commentEnd)) break
+                continue
+            }
             val paramsText = anonMatcher.group(1)
             val paramsStart = anonMatcher.start(1)
 
@@ -290,14 +345,16 @@ object CFMLModelParser
         }
 
         // 3. Arrow functions: ( [params] ) => { ... } or param => { ... }
-        val arrowPattern = Pattern.compile(
-            """(?i)(?:^|[\s;{}(=,:])(?:\(([^)]*)\)|([A-Za-z0-9_]+))\s*=>"""
-        )
-        val arrowMatcher = arrowPattern.matcher(text)
+        val arrowMatcher = ARROW_FUNC_PATTERN.matcher(text)
         while (arrowMatcher.find())
         {
             val start = arrowMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!arrowMatcher.find(commentEnd)) break
+                continue
+            }
             val paramsText = arrowMatcher.group(1) ?: arrowMatcher.group(2) ?: ""
             val paramsStart = if (arrowMatcher.group(1) != null) arrowMatcher.start(1) else arrowMatcher.start(2)
 
@@ -323,11 +380,6 @@ object CFMLModelParser
             extractFunctionParameters(paramsText, paramsStart, funcDecl, paramDecls, varDecls)
         }
     }
-
-    private val CFFUNCTION_PATTERN = Pattern.compile("""(?i)<cffunction\b([^>]*)>""", Pattern.DOTALL)
-    private val CFFUNCTION_CLOSE_PATTERN = Pattern.compile("""(?i)</cffunction>""")
-    private val CFARGUMENT_PATTERN = Pattern.compile("""(?i)<cfargument\b([^>]*)>""")
-    private val NAME_ATTR_PATTERN = Pattern.compile("""(?i)\bname\s*=\s*["']?([A-Za-z0-9_]+)["']?""")
 
     private fun findNextOpenBrace(text: String, fromIndex: Int, commentRanges: List<TextRange>): Int
     {
@@ -358,8 +410,7 @@ object CFMLModelParser
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
         if (paramsText.isNullOrBlank()) return
-        val paramPattern = Pattern.compile("""(?i)(?:(?:required|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*([A-Za-z0-9_]+)(?:\s*=[^,]*)?""")
-        val pm = paramPattern.matcher(paramsText)
+        val pm = PARAM_EXTRACT_PATTERN.matcher(paramsText)
         while (pm.find())
         {
             val pName = pm.group(1)
@@ -379,7 +430,7 @@ object CFMLModelParser
     fun parseAccessType(modifiers: String, extraAttrs: String = ""): CFMLAccessType
     {
         val combined = "$modifiers $extraAttrs"
-        val attrMatcher = Pattern.compile("""(?i)\baccess\s*=\s*["']?([A-Za-z0-9_]+)["']?""").matcher(combined)
+        val attrMatcher = ACCESS_ATTR_PATTERN.matcher(combined)
         if (attrMatcher.find())
         {
             return when (attrMatcher.group(1).lowercase())
@@ -467,6 +518,9 @@ object CFMLModelParser
         }
     }
 
+    private val TAG_DECL_PATTERN = Pattern.compile("""(?i)<(?:cfquery|cfdirectory|cfprocresult|cfhttp|cffile)\b([^>]*)>""")
+    private val TAG_DECL_ATTR_PATTERN = Pattern.compile("""(?i)\b(?:name|result|variable)\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""")
+
     private fun extractScriptVariableDeclarations(
         text: String,
         commentRanges: List<TextRange>,
@@ -482,12 +536,16 @@ object CFMLModelParser
         }
 
         // 0. Property declarations: property name="foo" type="string"; or property string foo; or property foo;
-        val propPattern = Pattern.compile("""(?i)\bproperty\s+([^;]+);""")
-        val propMatcher = propPattern.matcher(text)
+        val propMatcher = PROP_PATTERN.matcher(text)
         while (propMatcher.find())
         {
             val propStart = propMatcher.start()
-            if (isInsideRanges(propStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(propStart, commentRanges)
+            if (commentEnd > propStart)
+            {
+                if (!propMatcher.find(commentEnd)) break
+                continue
+            }
             val propBody = propMatcher.group(1).trim()
             val enclosingFunc = findInnermostEnclosingFunction(propStart, functions)
 
@@ -539,12 +597,16 @@ object CFMLModelParser
         }
 
         // 1. var declarations: var a = 1, b = 2; or var string x = "hello"; or var x;
-        val varPattern = Pattern.compile("""(?i)\bvar\s+""")
-        val varMatcher = varPattern.matcher(text)
+        val varMatcher = VAR_STMT_PATTERN.matcher(text)
         while (varMatcher.find())
         {
             val varStart = varMatcher.start()
-            if (isInsideRanges(varStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(varStart, commentRanges)
+            if (commentEnd > varStart)
+            {
+                if (!varMatcher.find(commentEnd)) break
+                continue
+            }
             val afterVar = varMatcher.end()
             val stmtEnd = findStatementEnd(text, afterVar, commentRanges)
             val stmtText = text.substring(afterVar, stmtEnd)
@@ -565,14 +627,18 @@ object CFMLModelParser
         }
 
         // 2. Typed declarations without 'var': string x = ...; numeric count = ...;
-        val typedPattern = Pattern.compile("""(?i)(?:^|[\s;{}])(string|numeric|number|boolean|bool|array|struct|query|date|any)\s+([A-Za-z0-9_]+)\s*(?:=|;|,|\))""")
-        val typedMatcher = typedPattern.matcher(text)
+        val typedMatcher = TYPED_DECL_PATTERN.matcher(text)
         while (typedMatcher.find())
         {
             val name = typedMatcher.group(2)
             val nameStart = typedMatcher.start(2)
             val nameEnd = typedMatcher.end(2)
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!typedMatcher.find(commentEnd)) break
+                continue
+            }
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
@@ -592,14 +658,18 @@ object CFMLModelParser
         }
 
         // 3. For loop variables: for (var i in items) or for (i in items) or for (var i = 1; ...)
-        val forPattern = Pattern.compile("""(?i)\bfor\s*\(\s*(?:var\s+)?([A-Za-z0-9_]+)\s*(?:in|=|;)""")
-        val forMatcher = forPattern.matcher(text)
+        val forMatcher = FOR_VAR_PATTERN.matcher(text)
         while (forMatcher.find())
         {
             val name = forMatcher.group(1)
             val nameStart = forMatcher.start(1)
             val nameEnd = forMatcher.end(1)
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!forMatcher.find(commentEnd)) break
+                continue
+            }
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
@@ -619,14 +689,18 @@ object CFMLModelParser
         }
 
         // 4. Catch block variable: catch (any e) or catch (CustomException e) or catch (e)
-        val catchPattern = Pattern.compile("""(?i)\bcatch\s*\(\s*(?:(?:any|[A-Za-z0-9_$.]+)\s+)?([A-Za-z0-9_]+)\s*\)""")
-        val catchMatcher = catchPattern.matcher(text)
+        val catchMatcher = CATCH_PATTERN.matcher(text)
         while (catchMatcher.find())
         {
             val name = catchMatcher.group(1)
             val nameStart = catchMatcher.start(1)
             val nameEnd = catchMatcher.end(1)
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!catchMatcher.find(commentEnd)) break
+                continue
+            }
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
@@ -646,15 +720,19 @@ object CFMLModelParser
         }
 
         // 5. Param declarations: param name="x" default="1"; or param string x = 1; or param x = 1;
-        val paramPattern = Pattern.compile("""(?i)\bparam\s+(?:name\s*=\s*["']?((?:local\.)?([A-Za-z0-9_]+))["']?|(?:(?:string|numeric|number|boolean|bool|array|struct|query|date|any)\s+)?([A-Za-z0-9_]+)\s*=)""")
-        val paramMatcher = paramPattern.matcher(text)
+        val paramMatcher = PARAM_PATTERN.matcher(text)
         while (paramMatcher.find())
         {
             val rawName = if (paramMatcher.group(1) != null) paramMatcher.group(1) else paramMatcher.group(3) ?: continue
             val name = CFMLDocumentModel.cleanVariableName(rawName)
             val nameStart = if (paramMatcher.group(1) != null) paramMatcher.start(1) + (rawName.length - name.length) else paramMatcher.start(3)
             val nameEnd = nameStart + name.length
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!paramMatcher.find(commentEnd)) break
+                continue
+            }
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
@@ -674,15 +752,19 @@ object CFMLModelParser
         }
 
         // 6. Plain and scoped assignments: x = ... or local.x = ... or variables.x = ... or this.x = ...
-        val assignPattern = Pattern.compile("""(?i)(?:^|[\s;{}])((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)(?!=)""")
-        val assignMatcher = assignPattern.matcher(text)
+        val assignMatcher = ASSIGN_PATTERN.matcher(text)
         while (assignMatcher.find())
         {
             val fullVar = assignMatcher.group(1)
             val name = assignMatcher.group(2)
             val nameStart = assignMatcher.start(2)
             val nameEnd = assignMatcher.end(2)
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!assignMatcher.find(commentEnd)) break
+                continue
+            }
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
@@ -714,8 +796,7 @@ object CFMLModelParser
         val eqIdx = item.indexOf('=')
         val lhs = if (eqIdx >= 0) item.substring(0, eqIdx) else item
 
-        val pattern = Pattern.compile("""(?i)((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*$""")
-        val m = pattern.matcher(lhs)
+        val m = VAR_ITEM_PATTERN.matcher(lhs)
         if (m.find())
         {
             val fullVar = m.group(1)
@@ -869,12 +950,16 @@ object CFMLModelParser
         }
 
         // 0. <cfproperty name="myProp" type="string">
-        val cfpropPattern = Pattern.compile("""(?i)<cfproperty\b([^>]*)>""")
-        val cfpropMatcher = cfpropPattern.matcher(text)
+        val cfpropMatcher = CFPROP_PATTERN.matcher(text)
         while (cfpropMatcher.find())
         {
             val start = cfpropMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!cfpropMatcher.find(commentEnd)) break
+                continue
+            }
             val attrs = cfpropMatcher.group(1)
             val nameM = NAME_ATTR_PATTERN.matcher(attrs)
             if (nameM.find())
@@ -899,12 +984,16 @@ object CFMLModelParser
         }
 
         // 1. <cfset var x = ...> or <cfset x = ...> or <cfset local.x = ...> or <cfset variables.x = ...> or <cfset this.x = ...>
-        val cfsetPattern = Pattern.compile("""(?i)<cfset\s+(?:var\s+)?((?:(?:local|variables|this)\.)?([A-Za-z0-9_]+))\s*(?:=|\+=|-=|\*=|/=|&=)""", Pattern.DOTALL)
-        val cfsetMatcher = cfsetPattern.matcher(text)
+        val cfsetMatcher = CFSET_PATTERN.matcher(text)
         while (cfsetMatcher.find())
         {
             val start = cfsetMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!cfsetMatcher.find(commentEnd)) break
+                continue
+            }
             val fullVar = cfsetMatcher.group(1)
             val name = cfsetMatcher.group(2)
             val nameStart = cfsetMatcher.start(2)
@@ -926,14 +1015,18 @@ object CFMLModelParser
         }
 
         // 2. <cfparam name="myVar" default="...">
-        val cfparamPattern = Pattern.compile("""(?i)<cfparam\b([^>]*)>""")
-        val cfparamMatcher = cfparamPattern.matcher(text)
+        val cfparamMatcher = CFPARAM_PATTERN.matcher(text)
         while (cfparamMatcher.find())
         {
             val start = cfparamMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!cfparamMatcher.find(commentEnd)) break
+                continue
+            }
             val attrs = cfparamMatcher.group(1)
-            val nameM = Pattern.compile("""(?i)\bname\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""").matcher(attrs)
+            val nameM = CFPARAM_NAME_ATTR_PATTERN.matcher(attrs)
             if (nameM.find())
             {
                 val fullVar = nameM.group(1)
@@ -958,14 +1051,18 @@ object CFMLModelParser
         }
 
         // 3. <cfloop index="i" ...> or item="item" or query="q"
-        val cfloopPattern = Pattern.compile("""(?i)<cfloop\b([^>]*)>""")
-        val cfloopMatcher = cfloopPattern.matcher(text)
+        val cfloopMatcher = CFLOOP_PATTERN.matcher(text)
         while (cfloopMatcher.find())
         {
             val start = cfloopMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!cfloopMatcher.find(commentEnd)) break
+                continue
+            }
             val attrs = cfloopMatcher.group(1)
-            val nameM = Pattern.compile("""(?i)\b(?:index|item|query)\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""").matcher(attrs)
+            val nameM = CFLOOP_ATTR_PATTERN.matcher(attrs)
             while (nameM.find())
             {
                 val fullVar = nameM.group(1)
@@ -989,14 +1086,18 @@ object CFMLModelParser
         }
 
         // 4. <cfquery name="qResult" ...> or <cfhttp result="res" ...> or <cfdirectory name="dir" ...> or <cffile variable="content" ...>
-        val tagDeclPattern = Pattern.compile("""(?i)<(?:cfquery|cfdirectory|cfprocresult|cfhttp|cffile)\b([^>]*)>""")
-        val tagDeclMatcher = tagDeclPattern.matcher(text)
+        val tagDeclMatcher = TAG_DECL_PATTERN.matcher(text)
         while (tagDeclMatcher.find())
         {
             val start = tagDeclMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!tagDeclMatcher.find(commentEnd)) break
+                continue
+            }
             val attrs = tagDeclMatcher.group(1)
-            val nameM = Pattern.compile("""(?i)\b(?:name|result|variable)\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""").matcher(attrs)
+            val nameM = TAG_DECL_ATTR_PATTERN.matcher(attrs)
             if (nameM.find())
             {
                 val fullVar = nameM.group(1)
@@ -1020,12 +1121,16 @@ object CFMLModelParser
         }
 
         // 5. <cfcatch type="...">
-        val cfcatchPattern = Pattern.compile("""(?i)<cfcatch\b([^>]*)>""")
-        val cfcatchMatcher = cfcatchPattern.matcher(text)
+        val cfcatchMatcher = CFCATCH_PATTERN.matcher(text)
         while (cfcatchMatcher.find())
         {
             val start = cfcatchMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!cfcatchMatcher.find(commentEnd)) break
+                continue
+            }
             val enclosingFunc = findInnermostEnclosingFunction(start, functions)
             val decl = CFMLVariableDeclaration(
                 "cfcatch",
@@ -1051,14 +1156,18 @@ object CFMLModelParser
         val funcNameStarts = functions.map { it.nameRange.startOffset }.toHashSet()
 
         // 1. Script function calls: foo(...)
-        val callPattern = Pattern.compile("""(?i)(?:^|[^A-Za-z0-9_$.])([A-Za-z0-9_]+)\s*\(""")
-        val matcher = callPattern.matcher(text)
+        val matcher = CALL_PATTERN.matcher(text)
         while (matcher.find())
         {
             val name = matcher.group(1)
             val nameStart = matcher.start(1)
             val nameEnd = matcher.end(1)
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!matcher.find(commentEnd)) break
+                continue
+            }
 
             // Exclude control flow keywords like if (, while (, for (, switch (, catch (
             if (CONTROL_KEYWORDS.contains(name.lowercase())) continue
@@ -1071,14 +1180,18 @@ object CFMLModelParser
         }
 
         // 2. <cfinvoke ... method="funcName" ...>
-        val invokePattern = Pattern.compile("""(?i)<cfinvoke\b([^>]*)>""")
-        val invokeMatcher = invokePattern.matcher(text)
+        val invokeMatcher = CFINVOKE_PATTERN.matcher(text)
         while (invokeMatcher.find())
         {
             val start = invokeMatcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!invokeMatcher.find(commentEnd)) break
+                continue
+            }
             val attrs = invokeMatcher.group(1)
-            val methodM = Pattern.compile("""(?i)\bmethod\s*=\s*["']?([A-Za-z0-9_]+)["']?""").matcher(attrs)
+            val methodM = METHOD_ATTR_PATTERN.matcher(attrs)
             if (methodM.find())
             {
                 val name = methodM.group(1)
@@ -1103,8 +1216,7 @@ object CFMLModelParser
         val varDeclNameStarts = varDecls.map { it.nameRange.startOffset }.toHashSet()
 
         // Match identifier tokens: (optional scope.)varName
-        val idPattern = Pattern.compile("""(?i)(?:(?:local|variables|arguments|session|application|request|this)\.)?([A-Za-z0-9_]+)""")
-        val matcher = idPattern.matcher(text)
+        val matcher = ID_PATTERN.matcher(text)
         while (matcher.find())
         {
             val fullToken = matcher.group()
@@ -1114,7 +1226,12 @@ object CFMLModelParser
             val fullStart = matcher.start()
             val fullEnd = matcher.end()
 
-            if (isInsideRanges(nameStart, commentRanges)) continue
+            val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
+            if (commentEnd > nameStart)
+            {
+                if (!matcher.find(commentEnd)) break
+                continue
+            }
 
             // Check if keyword
             if (KEYWORDS.contains(bareName.lowercase())) continue

@@ -55,7 +55,8 @@ class CFMLDocumentModel(
     val functions: List<CFMLFunctionDeclaration>,
     val functionCalls: List<CFMLFunctionCall>,
     val variableDeclarations: List<CFMLVariableDeclaration>,
-    val variableUsages: List<CFMLVariableUsage>)
+    val variableUsages: List<CFMLVariableUsage>,
+    val commentRanges: List<TextRange> = emptyList())
 {
     private val functionUsageCounts: Map<String, Int> = buildMap {
         for (call in functionCalls)
@@ -104,7 +105,24 @@ class CFMLDocumentModel(
 
     fun findEnclosingFunction(offset: Int): CFMLFunctionDeclaration?
     {
-        return findEnclosingFunctionHierarchy(offset).firstOrNull()
+        var bestFunc: CFMLFunctionDeclaration? = null
+        var minLen = Int.MAX_VALUE
+        for (func in functions)
+        {
+            if (func.range.startOffset <= offset && offset <= func.range.endOffset)
+            {
+                if (func.bodyRange?.containsOffset(offset) == true || func.range.containsOffset(offset))
+                {
+                    val len = func.range.length
+                    if (len < minLen)
+                    {
+                        minLen = len
+                        bestFunc = func
+                    }
+                }
+            }
+        }
+        return bestFunc
     }
 
     fun findVariableDeclaration(name: String, offset: Int): CFMLVariableDeclaration?
