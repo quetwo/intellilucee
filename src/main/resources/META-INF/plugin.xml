@@ -92,7 +92,7 @@
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.editor.CFMLFoldingBuilder"/>
 
-        <!-- Support for auto-closing pound signs, etc. inthe editor -->
+        <!-- Support for auto-closing pound signs, etc. in the editor -->
         <typedHandler implementation="com.quetwo.intellilucee.editor.CFMLTypedHandler"/>
 
         <!-- Find Usages support for CFML functions and variables -->
