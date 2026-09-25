@@ -66,10 +66,12 @@ class CFMLLargeFilePerformanceTest : BasePlatformTestCase() {
 
         val start = System.currentTimeMillis()
         // Type characters
-        myFixture.type(' ')
-        myFixture.type('+')
-        myFixture.type(' ')
-        myFixture.type('5')
+        for (k in 1..20) {
+            myFixture.type(' ')
+            myFixture.type('+')
+            myFixture.type(' ')
+            myFixture.type('5')
+        }
         val elapsed = System.currentTimeMillis() - start
 
         assertTrue("Typing in large CFM file should be fast (was ${elapsed}ms)", elapsed < 2000)
