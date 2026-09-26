@@ -277,6 +277,8 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
                 "queryCommaPosition" to "preserve",
                 "lineWidth" to settings.lineWidth,
                 "attrBreakThreshold" to settings.numberOfAttributesPerLine,
+                "braceStyle" to settings.braceStyle,
+                "parenSpacing" to settings.parenSpacing,
                 "indentWidth" to 4)
         )
     }

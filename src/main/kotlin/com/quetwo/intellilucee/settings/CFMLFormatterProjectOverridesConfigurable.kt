@@ -31,6 +31,8 @@ class CFMLFormatterProjectOverridesConfigurable(private val project: Project) : 
     private lateinit var commaPlacementComboBox: JComboBox<String>
     private lateinit var numberOfAttributesPerLineSpinner: JSpinner
     private lateinit var lineWidthSpinner: JSpinner
+    private lateinit var braceStyleComboBox: JComboBox<String>
+    private lateinit var parenSpacingComboBox: JComboBox<String>
 
     override fun getId(): String = "settings.intellilucee.cfml.formatter.project.overrides"
 
@@ -53,6 +55,8 @@ class CFMLFormatterProjectOverridesConfigurable(private val project: Project) : 
         commaPlacementComboBox = JComboBox(arrayOf("after", "before"))
         numberOfAttributesPerLineSpinner = JSpinner(SpinnerNumberModel(1, 1, 1000, 1))
         lineWidthSpinner = JSpinner(SpinnerNumberModel(120, 20, 1000, 1))
+        braceStyleComboBox = JComboBox(arrayOf("same-line", "next-line"))
+        parenSpacingComboBox = JComboBox(arrayOf("pad", "tight"))
 
         panel = JPanel(GridLayout(0, 1, 0, 4)).apply {
             add(JLabel("Module"))
@@ -75,6 +79,10 @@ class CFMLFormatterProjectOverridesConfigurable(private val project: Project) : 
             add(numberOfAttributesPerLineSpinner)
             add(JLabel("Line Width"))
             add(lineWidthSpinner)
+            add(JLabel("Brace Style"))
+            add(braceStyleComboBox)
+            add(JLabel("Paren Spacing"))
+            add(parenSpacingComboBox)
         }
 
         moduleCombo.addActionListener { reset() }
@@ -99,7 +107,9 @@ class CFMLFormatterProjectOverridesConfigurable(private val project: Project) : 
             state.normalizeCfmlScopeNames != normalizeCfmlScopeNamesComboBox.selectedItem as String ||
             state.commaPlacementInMultilineArgumentLists != commaPlacementComboBox.selectedItem as String ||
             state.numberOfAttributesPerLine != (numberOfAttributesPerLineSpinner.value as Int) ||
-            state.lineWidth != (lineWidthSpinner.value as Int)
+            state.lineWidth != (lineWidthSpinner.value as Int) ||
+            state.braceStyle != braceStyleComboBox.selectedItem as String ||
+            state.parenSpacing != parenSpacingComboBox.selectedItem as String
     }
 
     override fun apply()
@@ -120,6 +130,8 @@ class CFMLFormatterProjectOverridesConfigurable(private val project: Project) : 
         state.commaPlacementInMultilineArgumentLists = commaPlacementComboBox.selectedItem as String
         state.numberOfAttributesPerLine = numberOfAttributesPerLineSpinner.value as Int
         state.lineWidth = lineWidthSpinner.value as Int
+        state.braceStyle = braceStyleComboBox.selectedItem as String
+        state.parenSpacing = parenSpacingComboBox.selectedItem as String
     }
 
     override fun reset()
@@ -145,6 +157,8 @@ class CFMLFormatterProjectOverridesConfigurable(private val project: Project) : 
         commaPlacementComboBox.selectedItem = state.commaPlacementInMultilineArgumentLists ?: "after"
         numberOfAttributesPerLineSpinner.value = state.numberOfAttributesPerLine
         lineWidthSpinner.value = state.lineWidth
+        braceStyleComboBox.selectedItem = state.braceStyle ?: "same-line"
+        parenSpacingComboBox.selectedItem = state.parenSpacing ?: "pad"
     }
 
     override fun disposeUIResources()

@@ -75,6 +75,14 @@ class CFMLFormatterModuleConfigurable(private val module: Module) : BoundSearcha
                         .columns(8)
                         .bindIntText(settings.state::lineWidth)
                 }
+                row("Brace Style") {
+                    comboBox(listOf("same-line", "next-line"))
+                        .bindItem(settings.state::braceStyle)
+                }
+                row("Paren Spacing") {
+                    comboBox(listOf("pad", "tight"))
+                        .bindItem(settings.state::parenSpacing)
+                }
             }
         }
     }

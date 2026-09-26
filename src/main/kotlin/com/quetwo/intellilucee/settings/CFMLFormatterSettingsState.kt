@@ -14,4 +14,6 @@ data class CFMLFormatterSettingsState(
     var commaPlacementInMultilineArgumentLists: String? = "after",
     var numberOfAttributesPerLine: Int = 4,
     var lineWidth: Int = 100,
+    var braceStyle: String? = "same-line",
+    var parenSpacing: String? = "pad",
 )

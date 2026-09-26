@@ -16,6 +16,8 @@ data class CFMLFormatterEffectiveSettings(
     val commaPlacementInMultilineArgumentLists: String,
     val numberOfAttributesPerLine: Int,
     val lineWidth: Int,
+    val braceStyle: String,
+    val parenSpacing: String,
 )
 
 object CFMLFormatterSettingsResolver
@@ -49,6 +51,8 @@ object CFMLFormatterSettingsResolver
             commaPlacementInMultilineArgumentLists = moduleState.commaPlacementInMultilineArgumentLists ?: "after",
             numberOfAttributesPerLine = moduleState.numberOfAttributesPerLine,
             lineWidth = moduleState.lineWidth,
+            braceStyle = moduleState.braceStyle ?: "same-line",
+            parenSpacing = moduleState.parenSpacing ?: "pad",
         )
     }
 
@@ -68,6 +72,8 @@ object CFMLFormatterSettingsResolver
             commaPlacementInMultilineArgumentLists = commaPlacementInMultilineArgumentLists ?: "after",
             numberOfAttributesPerLine = numberOfAttributesPerLine,
             lineWidth = lineWidth,
+            braceStyle = braceStyle ?: "same-line",
+            parenSpacing = parenSpacing ?: "pad",
         )
     }
 }
