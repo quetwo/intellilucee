@@ -803,7 +803,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         }
 
         assertEquals("var", tokens[0].first)
-        assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.IDENTIFIER, tokens[0].second)
+        assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.VAR_KEYWORD, tokens[0].second)
 
         assertEquals(" ", tokens[1].first)
         assertEquals(com.intellij.psi.TokenType.WHITE_SPACE, tokens[1].second)
@@ -820,11 +820,11 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
 
         val stringToken = tokens.firstOrNull { it.first == "\"str\"" }
         assertNotNull("Should have string token", stringToken)
-        assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.STRING, stringToken!!.second)
+        assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.DOUBLE_QUOTED_STRING, stringToken!!.second)
 
         val commentToken = tokens.firstOrNull { it.first == "// comment" }
         assertNotNull("Should have comment token", commentToken)
-        assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.COMMENT, commentToken!!.second)
+        assertEquals(com.quetwo.intellilucee.parser.CFMLTokenTypes.LINE_COMMENT, commentToken!!.second)
     }
 
     @Test

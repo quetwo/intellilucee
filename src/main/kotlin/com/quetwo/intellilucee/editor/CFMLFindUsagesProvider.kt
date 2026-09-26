@@ -19,9 +19,9 @@ class CFMLFindUsagesProvider : FindUsagesProvider
     {
         return DefaultWordsScanner(
             CFMLLexer(),
-            TokenSet.create(CFMLTokenTypes.IDENTIFIER, CFMLTokenTypes.TEXT),
-            TokenSet.create(CFMLTokenTypes.COMMENT),
-            TokenSet.create(CFMLTokenTypes.STRING)
+            TokenSet.create(CFMLTokenTypes.IDENTIFIER, CFMLTokenTypes.TEXT, CFMLTokenTypes.TAG_NAME, CFMLTokenTypes.ATTRIBUTE_NAME),
+            CFMLTokenTypes.COMMENTS,
+            CFMLTokenTypes.STRINGS
         )
     }
 

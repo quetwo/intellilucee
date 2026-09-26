@@ -13,11 +13,11 @@
         - Includes Syntax Highlighting, auto-complete, built-in documentation, component introspection
         - New project wizards and new file templates
         - Surround with and commenting helpers
+        - Component Class Path Introspection
         - Formatter / Linter
 
         Roadmap items:
         - Integrated debugger support
-        - Better support for component class path introspection
         - Better support for ORM scaffolding
         ]]></description>
 
@@ -26,7 +26,6 @@
     <depends>com.intellij.modules.lsp</depends>
     <depends>com.intellij.modules.xdebugger</depends>
     <depends>com.intellij.properties</depends>
-    <depends>org.jetbrains.plugins.textmate</depends>
 
     <extensions defaultExtensionNs="com.intellij">
 
@@ -59,25 +58,19 @@
                 extensions="cfml;cfc;cfm;cfs"
                 implementationClass="com.quetwo.intellilucee.file.CFMLFileType" />
 
-        <!-- Editor syntax highlighting via the bundled TextMate engine. -->
-        <textmate.bundleProvider implementation="com.quetwo.intellilucee.grammar.CFMLTextMateBundleProvider"/>
-        <!--
-            A custom file type otherwise shadows TextMate, so the TextMate highlighter
-            is bound explicitly to the Carve file type / language (the BAML / fss pattern).
-        -->
-        <editorHighlighterProvider
-                filetype="CFML"
-                implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateEditorHighlighterProvider"/>
+        <!-- Editor syntax highlighting -->
         <lang.syntaxHighlighterFactory
                 language="CFML"
-                implementationClass="org.jetbrains.plugins.textmate.language.syntax.highlighting.TextMateSyntaxHighlighterFactory"/>
+                implementationClass="com.quetwo.intellilucee.editor.CFMLSyntaxHighlighterFactory"/>
+        <colorSettingsPage
+                implementation="com.quetwo.intellilucee.editor.CFMLColorSettingsPage"/>
 
         <!-- Commenter to enable comments within the IDE -->
         <lang.commenter
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.editor.CFMLCommenter"/>
 
-        <!-- Stub Lexer/Parser to allow for the TextMate bundle implementer to update the screen -->
+        <!-- Lexer/Parser Definition for CFML -->
         <lang.parserDefinition
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.parser.CFMLParserDefinition"/>
