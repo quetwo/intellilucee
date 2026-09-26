@@ -261,6 +261,8 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
 
     override fun createInitializationOptions(): Any
     {
+        val globalSettings = ApplicationManager.getApplication()?.getService(CFMLGlobalSettings::class.java)
+        val lintingEnabled = globalSettings?.state?.syntaxAndErrorHighlighting ?: true
         val settings = CFMLFormatterSettingsResolver.resolve(module = null)
         return mapOf(
             "formatting" to mapOf(
@@ -280,7 +282,7 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
                 "parenSpacing" to settings.parenSpacing,
                 "indentWidth" to 4),
             "linting" to mapOf(
-                "enabled" to true)
+                "enabled" to lintingEnabled)
         )
     }
 

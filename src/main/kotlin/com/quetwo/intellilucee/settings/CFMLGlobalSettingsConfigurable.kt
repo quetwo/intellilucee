@@ -30,6 +30,10 @@ class CFMLGlobalSettingsConfigurable : BoundSearchableConfigurable("Lucee CFML",
                     checkBox("Auto-close CFML tags")
                         .bindSelected(settings.state::autoCloseTags)
                 }
+                row {
+                    checkBox("Enable syntax and error highlighting")
+                        .bindSelected(settings.state::syntaxAndErrorHighlighting)
+                }
             }
         }
     }

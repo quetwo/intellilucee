@@ -64,6 +64,9 @@
                 implementationClass="com.quetwo.intellilucee.editor.CFMLSyntaxHighlighterFactory"/>
         <colorSettingsPage
                 implementation="com.quetwo.intellilucee.editor.CFMLColorSettingsPage"/>
+        <annotator
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLAnnotator"/>
 
         <!-- Commenter to enable comments within the IDE -->
         <lang.commenter

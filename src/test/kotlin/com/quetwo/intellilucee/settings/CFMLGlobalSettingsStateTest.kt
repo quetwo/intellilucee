@@ -11,6 +11,7 @@ class CFMLGlobalSettingsStateTest
         val state = CFMLGlobalSettingsState()
         assertEquals("LATEST", state.lspReleaseVersion)
         assertEquals(true, state.autoCloseTags)
+        assertEquals(true, state.syntaxAndErrorHighlighting)
     }
 
     @Test
@@ -21,5 +22,7 @@ class CFMLGlobalSettingsStateTest
         assertEquals("v0.2.8", state.lspReleaseVersion)
         state.autoCloseTags = false
         assertEquals(false, state.autoCloseTags)
+        state.syntaxAndErrorHighlighting = false
+        assertEquals(false, state.syntaxAndErrorHighlighting)
     }
 }

@@ -62,6 +62,10 @@ public class CFMLSyntaxHighlighter extends SyntaxHighlighterBase
         createTextAttributesKey("CFML_HASH", DefaultLanguageHighlighterColors.MARKUP_ENTITY);
     public static final TextAttributesKey IDENTIFIER =
         createTextAttributesKey("CFML_IDENTIFIER", DefaultLanguageHighlighterColors.IDENTIFIER);
+    public static final TextAttributesKey FUNCTION_DECLARATION =
+        createTextAttributesKey("CFML_FUNCTION_DECLARATION", DefaultLanguageHighlighterColors.FUNCTION_DECLARATION);
+    public static final TextAttributesKey FUNCTION_CALL =
+        createTextAttributesKey("CFML_FUNCTION_CALL", DefaultLanguageHighlighterColors.FUNCTION_CALL);
     public static final TextAttributesKey BAD_CHARACTER =
         createTextAttributesKey("CFML_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER);
 

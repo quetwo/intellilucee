@@ -37,6 +37,8 @@ public class CFMLColorSettingsPage implements ColorSettingsPage
         new AttributesDescriptor("Scope", CFMLSyntaxHighlighter.SCOPE),
         new AttributesDescriptor("Hash interpolation", CFMLSyntaxHighlighter.HASH),
         new AttributesDescriptor("Identifier", CFMLSyntaxHighlighter.IDENTIFIER),
+        new AttributesDescriptor("Function declaration", CFMLSyntaxHighlighter.FUNCTION_DECLARATION),
+        new AttributesDescriptor("Function call", CFMLSyntaxHighlighter.FUNCTION_CALL),
         new AttributesDescriptor("Bad character", CFMLSyntaxHighlighter.BAD_CHARACTER)
     };
 
