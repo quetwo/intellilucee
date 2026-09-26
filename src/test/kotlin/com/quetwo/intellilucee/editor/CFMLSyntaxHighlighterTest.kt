@@ -93,5 +93,16 @@ class CFMLSyntaxHighlighterTest {
         assertNotNull(page.highlighter)
         assertTrue(page.demoText.isNotEmpty())
         assertTrue(page.attributeDescriptors.isNotEmpty())
+        val descriptorNames = page.attributeDescriptors.map { it.displayName }
+        assertTrue(descriptorNames.contains("Function declaration"))
+        assertTrue(descriptorNames.contains("Function call"))
+    }
+
+    @Test
+    fun testSyntaxHighlighterFactoryReturnsHighlighter() {
+        val factory = CFMLSyntaxHighlighterFactory()
+        val highlighter = factory.getSyntaxHighlighter(null, null)
+        assertNotNull(highlighter)
+        assertTrue(highlighter is CFMLSyntaxHighlighter)
     }
 }
