@@ -263,7 +263,6 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
     {
         val settings = CFMLFormatterSettingsResolver.resolve(module = null)
         return mapOf(
-            "debug" to true,
             "formatting" to mapOf(
                 "enabled" to settings.formatterEnabled,
                 "queryFormat" to settings.formatWithinQueryTags,
@@ -279,7 +278,9 @@ class CFMLLspClientDescriptor(project: Project) : ProjectWideLspClientDescriptor
                 "attrBreakThreshold" to settings.numberOfAttributesPerLine,
                 "braceStyle" to settings.braceStyle,
                 "parenSpacing" to settings.parenSpacing,
-                "indentWidth" to 4)
+                "indentWidth" to 4),
+            "linting" to mapOf(
+                "enabled" to true)
         )
     }
 

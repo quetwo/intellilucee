@@ -15,27 +15,17 @@ object CFMLLspReleaseProvider
     private const val GITHUB_RELEASES_API_URL = "https://api.github.com/repos/cfmleditor/cfmleditor-lsp/releases"
 
     private val FALLBACK_VERSIONS = listOf(
+        "v0.3.6",
+        "v0.3.5",
+        "v0.3.4",
+        "v0.3.3",
+        "v0.3.2",
+        "v0.3.1",
+        "v0.3.0",
         "v0.2.8",
         "v0.2.7",
         "v0.2.6",
-        "v0.2.5",
-        "v0.1.22",
-        "v0.1.21",
-        "v0.1.20",
-        "v0.1.19",
-        "v0.1.18",
-        "v0.1.17",
-        "v0.1.16",
-        "v0.1.15",
-        "v0.1.14",
-        "v0.1.12",
-        "v0.1.9",
-        "v0.1.6",
-        "v0.1.5",
-        "v0.1.4",
-        "v0.1.2",
-        "v0.1.1",
-        "v0.1.0"
+        "v0.2.5"
     )
 
     @Volatile
