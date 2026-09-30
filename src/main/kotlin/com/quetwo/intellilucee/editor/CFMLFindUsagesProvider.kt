@@ -1,12 +1,9 @@
 package com.quetwo.intellilucee.editor
 
-import com.intellij.lang.cacheBuilder.DefaultWordsScanner
 import com.intellij.lang.cacheBuilder.WordsScanner
 import com.intellij.lang.findUsages.FindUsagesProvider
 import com.intellij.psi.PsiElement
-import com.intellij.psi.tree.TokenSet
-import com.quetwo.intellilucee.parser.CFMLLexer
-import com.quetwo.intellilucee.parser.CFMLTokenTypes
+import com.quetwo.intellilucee.parser.CFMLWordsScanner
 import com.quetwo.intellilucee.psi.CFMLFunctionElement
 import com.quetwo.intellilucee.psi.CFMLNamedElement
 import com.quetwo.intellilucee.psi.CFMLPsiUtil
@@ -17,12 +14,7 @@ class CFMLFindUsagesProvider : FindUsagesProvider
 
     override fun getWordsScanner(): WordsScanner
     {
-        return DefaultWordsScanner(
-            CFMLLexer(),
-            TokenSet.create(CFMLTokenTypes.IDENTIFIER, CFMLTokenTypes.TEXT, CFMLTokenTypes.TAG_NAME, CFMLTokenTypes.ATTRIBUTE_NAME),
-            CFMLTokenTypes.COMMENTS,
-            CFMLTokenTypes.STRINGS
-        )
+        return CFMLWordsScanner()
     }
 
     override fun canFindUsagesFor(psiElement: PsiElement): Boolean

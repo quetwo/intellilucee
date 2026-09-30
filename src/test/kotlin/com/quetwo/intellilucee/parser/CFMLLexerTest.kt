@@ -191,4 +191,96 @@ class CFMLLexerTest {
         assertEquals(CFMLTokenTypes.TAG_NAME, tokens[closeFuncStart + 1].second)
         assertEquals("cffunction", tokens[closeFuncStart + 1].first)
     }
+
+    @Test
+    fun testHyphensInTagsAndScript() {
+        // Hyphens in tags/attributes vs hyphens in script
+        val tagCode = "<custom-tag my-attribute=\"val\" />"
+        val tagTokens = tokenize(tagCode).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.TAG_OPEN_START, tagTokens[0].second)
+        assertEquals(CFMLTokenTypes.TAG_NAME, tagTokens[1].second)
+        assertEquals("custom-tag", tagTokens[1].first)
+        assertEquals(CFMLTokenTypes.ATTRIBUTE_NAME, tagTokens[2].second)
+        assertEquals("my-attribute", tagTokens[2].first)
+
+        val scriptCode = "a - b; x-y;"
+        val scriptTokens = tokenize(scriptCode).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.IDENTIFIER, scriptTokens[0].second)
+        assertEquals("a", scriptTokens[0].first)
+        assertEquals(CFMLTokenTypes.MINUS, scriptTokens[1].second)
+        assertEquals(CFMLTokenTypes.IDENTIFIER, scriptTokens[2].second)
+        assertEquals("b", scriptTokens[2].first)
+        assertEquals(CFMLTokenTypes.SEMICOLON, scriptTokens[3].second)
+        assertEquals(CFMLTokenTypes.IDENTIFIER, scriptTokens[4].second)
+        assertEquals("x", scriptTokens[4].first)
+        assertEquals(CFMLTokenTypes.MINUS, scriptTokens[5].second)
+        assertEquals(CFMLTokenTypes.IDENTIFIER, scriptTokens[6].second)
+        assertEquals("y", scriptTokens[6].first)
+    }
+
+    @Test
+    fun testDollarIdentifiers() {
+        val code = "\$foo = 1; var \$bar = \$foo + 2;"
+        val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.IDENTIFIER, tokens[0].second)
+        assertEquals("\$foo", tokens[0].first)
+        assertEquals(CFMLTokenTypes.ASSIGN, tokens[1].second)
+        assertEquals(CFMLTokenTypes.INTEGER_LITERAL, tokens[2].second)
+        assertEquals(CFMLTokenTypes.SEMICOLON, tokens[3].second)
+        assertEquals(CFMLTokenTypes.VAR_KEYWORD, tokens[4].second)
+        assertEquals(CFMLTokenTypes.IDENTIFIER, tokens[5].second)
+        assertEquals("\$bar", tokens[5].first)
+    }
+
+    @Test
+    fun testAllRemainingKeywordsAndTypes() {
+        val code = "variablename datetime uuid guid binary struct array transaction application implements attributes"
+        val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.TYPE_VARIABLENAME, tokens[0].second)
+        assertEquals(CFMLTokenTypes.TYPE_DATE, tokens[1].second)
+        assertEquals(CFMLTokenTypes.TYPE_UUID, tokens[2].second)
+        assertEquals(CFMLTokenTypes.TYPE_GUID, tokens[3].second)
+        assertEquals(CFMLTokenTypes.TYPE_BINARY, tokens[4].second)
+        assertEquals(CFMLTokenTypes.TYPE_STRUCT, tokens[5].second)
+        assertEquals(CFMLTokenTypes.TYPE_ARRAY, tokens[6].second)
+        assertEquals(CFMLTokenTypes.TRANSACTION_KEYWORD, tokens[7].second)
+        assertEquals(CFMLTokenTypes.SCOPE_APPLICATION, tokens[8].second)
+        assertEquals(CFMLTokenTypes.IMPLEMENTS_KEYWORD, tokens[9].second)
+        assertEquals(CFMLTokenTypes.SCOPE_ATTRIBUTES, tokens[10].second)
+    }
+
+    @Test
+    fun testLessThanInScriptExpressions() {
+        val code = "for (var i = 0; i<len; i++) { if (x<y) { var b = (a)<c; } }"
+        val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }
+        val lessTokens = tokens.filter { it.second == CFMLTokenTypes.LESS }
+        assertEquals(3, lessTokens.size)
+        // Ensure no tag start is erroneously produced inside loop header
+        val tagStartTokens = tokens.filter { it.second == CFMLTokenTypes.TAG_OPEN_START }
+        assertEquals(0, tagStartTokens.size)
+    }
+
+    @Test
+    fun testMasaCmsPatternLexing() {
+        val masaCode = """
+            <cfcomponent output="false" extends="mura.bean.beanORM">
+                <cfproperty name="contentid" fieldtype="id">
+                <cfproperty name="siteid" default="">
+                <cffunction name="save" access="public" output="false" returntype="any">
+                    <cfargument name="data" type="struct" required="false">
+                    <cfset var result = "">
+                    <cfset var local = {}>
+                    <cfif isDefined("arguments.data") and isStruct(arguments.data)>
+                        <cfset local.item = arguments.data>
+                    </cfif>
+                    <cfreturn result>
+                </cffunction>
+            </cfcomponent>
+        """.trimIndent()
+        val tokens = tokenize(masaCode).filter { it.second != TokenType.WHITE_SPACE }
+        assertTrue(tokens.isNotEmpty())
+        assertEquals(CFMLTokenTypes.TAG_OPEN_START, tokens[0].second)
+        assertEquals(CFMLTokenTypes.TAG_NAME, tokens[1].second)
+        assertEquals("cfcomponent", tokens[1].first)
+    }
 }

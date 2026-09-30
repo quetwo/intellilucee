@@ -151,4 +151,21 @@ class CFMLLargeFilePerformanceTest : BasePlatformTestCase() {
 
         assertTrue("Single-element line marker pass on large CFM should be near-instant (was ${elapsed}ms)", elapsed < 500)
     }
+
+    @Test
+    fun testScanningPerformanceHundredsOfFiles() {
+        val scanner = CFMLFindUsagesProvider().wordsScanner
+        val content = generateLargeCfmContent(100) // ~2000 lines
+        val start = System.currentTimeMillis()
+        var totalWords = 0
+        for (f in 1..200) {
+            scanner.processWords(content) {
+                totalWords++
+                true
+            }
+        }
+        val elapsed = System.currentTimeMillis() - start
+        println("[BENCHMARK] Lexing and scanning 200 files: ${elapsed}ms for $totalWords words")
+        assertTrue("Scanning hundreds of CFM files should complete in < 3000ms (was ${elapsed}ms)", elapsed < 3000)
+    }
 }
