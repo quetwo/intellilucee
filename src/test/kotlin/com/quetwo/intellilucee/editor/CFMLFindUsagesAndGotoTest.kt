@@ -285,6 +285,19 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertTrue("Should find at least 2 usages of count", usages.size >= 2)
     }
 
+    private fun collectLineMarkersForFile(file: com.intellij.psi.PsiFile): List<com.intellij.codeInsight.daemon.LineMarkerInfo<*>> {
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+        for (i in 0 until file.textLength) {
+            val element = file.findElementAt(i) ?: continue
+            val marker = lineMarkerProvider.getLineMarkerInfo(element)
+            if (marker != null && markers.none { it.element == marker.element }) {
+                markers.add(marker)
+            }
+        }
+        return markers
+    }
+
     @Test
     fun testFunctionUsageCountLineMarker() {
         val file = myFixture.configureByText(
@@ -311,10 +324,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         val count = model.getFunctionUsageCount(helperFunc!!)
         assertEquals(3, count)
 
-        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
-        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
-
+        val markers = collectLineMarkersForFile(file)
         val helperMarker = markers.firstOrNull { it.lineMarkerTooltip?.contains("3 uses") == true }
         assertNotNull("Should find line marker with 3 uses tooltip", helperMarker)
     }
@@ -340,10 +350,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertNotNull(func)
         assertEquals(1, model.getFunctionUsageCount(func!!))
 
-        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
-        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
-
+        val markers = collectLineMarkersForFile(file)
         val marker = markers.firstOrNull { it.lineMarkerTooltip?.contains("1 use") == true }
         assertNotNull("Should find line marker with 1 use tooltip", marker)
     }
@@ -368,17 +375,13 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
         val allMarkers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
 
-        // Simulate daemon passing elements one by one or in batches
+        // Simulate daemon passing elements one by one
         val text = file.text
         for (i in 0 until text.length) {
             val element = file.findElementAt(i) ?: continue
-            val chunkMarkers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-            lineMarkerProvider.collectSlowLineMarkers(listOf(element), chunkMarkers)
-            for (m in chunkMarkers) {
-                // Ensure no duplicate marker is added for the same element
-                if (!allMarkers.any { it.element == m.element }) {
-                    allMarkers.add(m)
-                }
+            val marker = lineMarkerProvider.getLineMarkerInfo(element)
+            if (marker != null && allMarkers.none { it.element == marker.element }) {
+                allMarkers.add(marker)
             }
         }
 
@@ -386,6 +389,176 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         val model = CFMLPsiUtil.getModel(file)
         assertEquals(2, model.functions.size)
         assertEquals(2, allMarkers.size)
+    }
+
+    @Test
+    fun testNeverMoreThanOneLineMarkerPerLineForFunctions() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function funcA() { return 1; } function funcB() { return 2; }
+            }
+            """.trimIndent()
+        )
+
+        val markers = collectLineMarkersForFile(file)
+
+        // Multiple functions on the same line should produce only one gutter marker
+        assertEquals(1, markers.size)
+    }
+
+    @Test
+    fun testGetLineMarkerInfoReturnsOnlyForFunctionIdentifierLeaf() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                public function computeTotal(numeric a, numeric b) {
+                    return a + b;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
+        val matchedMarkers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+
+        for (i in 0 until file.textLength) {
+            val elem = file.findElementAt(i) ?: continue
+            val info = lineMarkerProvider.getLineMarkerInfo(elem)
+            if (info != null && matchedMarkers.none { it.element == info.element }) {
+                matchedMarkers.add(info)
+            }
+        }
+
+        // Exactly one line marker for computeTotal
+        assertEquals(1, matchedMarkers.size)
+        assertEquals("computeTotal", matchedMarkers[0].element?.text)
+        assertEquals(CFMLIcon.FUNCTION_PUBLIC, matchedMarkers[0].icon)
+    }
+
+    @Test
+    fun testNoLineMarkerForFunctionInStringLiteral() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function realFunc() {
+                    var jsCode = "function fakeFuncInsideString() { return 1; }";
+                    var sql = "SELECT function_name FROM table";
+                    return jsCode;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(1, model.functions.size)
+        assertEquals("realFunc", model.functions[0].name)
+
+        val markers = collectLineMarkersForFile(file)
+
+        assertEquals(1, markers.size)
+        assertEquals("realFunc", (CFMLPsiUtil.resolveSymbolAt(file, markers[0].element!!.textRange.startOffset) as? CFMLFunctionElement)?.name)
+    }
+
+    @Test
+    fun testNoLineMarkerForTagFunctionInStringLiteral() {
+        val file = myFixture.configureByText(
+            "test.cfm",
+            """
+            <cffunction name="realTagFunc" access="public">
+                <cfset var template = '<cffunction name="fakeTagInString" access="remote"></cffunction>'>
+            </cffunction>
+            """.trimIndent()
+        )
+
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(1, model.functions.size)
+        assertEquals("realTagFunc", model.functions[0].name)
+
+        val markers = collectLineMarkersForFile(file)
+
+        assertEquals(1, markers.size)
+    }
+
+    @Test
+    fun testNoLineMarkerForJavaScriptFunctionInCfm() {
+        val file = myFixture.configureByText(
+            "test.cfm",
+            """
+            <script type="text/javascript">
+                function clientSideJsFunc() {
+                    console.log("browser code");
+                }
+            </script>
+            
+            <cfscript>
+                function serverSideCfFunc() {
+                    return 42;
+                }
+            </cfscript>
+            """.trimIndent()
+        )
+
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(1, model.functions.size)
+        assertEquals("serverSideCfFunc", model.functions[0].name)
+
+        val markers = collectLineMarkersForFile(file)
+
+        assertEquals(1, markers.size)
+        assertEquals("serverSideCfFunc", (CFMLPsiUtil.resolveSymbolAt(file, markers[0].element!!.textRange.startOffset) as? CFMLFunctionElement)?.name)
+    }
+
+    @Test
+    fun testNoLineMarkerForPropertyWithAccessors() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component accessors="true" {
+                property name="title" type="string";
+                property name="count" type="numeric";
+                
+                function customMethod() {
+                    return getTitle();
+                }
+            }
+            """.trimIndent()
+        )
+
+        val model = CFMLPsiUtil.getModel(file)
+        assertEquals(1, model.functions.size)
+        assertEquals("customMethod", model.functions[0].name)
+
+        val markers = collectLineMarkersForFile(file)
+
+        assertEquals(1, markers.size)
+        assertEquals("customMethod", (CFMLPsiUtil.resolveSymbolAt(file, markers[0].element!!.textRange.startOffset) as? CFMLFunctionElement)?.name)
+    }
+
+    @Test
+    fun testNoDuplicateLineMarkersWhenResultAlreadyContainsMarker() {
+        val file = myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                function run() {
+                    return 42;
+                }
+            }
+            """.trimIndent()
+        )
+
+        val markers = collectLineMarkersForFile(file)
+        assertEquals(1, markers.size)
+
+        // Slow line markers collection should not add duplicate markers
+        val slowMarkers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
+        val provider = CFMLFunctionUsageLineMarkerProvider()
+        provider.collectSlowLineMarkers(listOf(file), slowMarkers)
+        assertTrue(slowMarkers.isEmpty())
     }
 
     @Test
@@ -404,11 +577,10 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
 
         val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
         val varElement = file.findElementAt(file.text.indexOf("x = 10"))!!
-        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-        lineMarkerProvider.collectSlowLineMarkers(listOf(varElement), markers)
+        val info = lineMarkerProvider.getLineMarkerInfo(varElement)
 
         // No line markers should be added for a variable element
-        assertTrue("No line markers should be added for non-function element", markers.isEmpty())
+        assertNull("No line markers should be added for non-function element", info)
     }
 
     @Test
@@ -425,9 +597,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
             """.trimIndent()
         )
 
-        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
-        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
+        val markers = collectLineMarkersForFile(file)
 
         // Only foo should have a marker, anonymous function shouldn't
         assertEquals(1, markers.size)
@@ -457,9 +627,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertEquals(CFMLAccessType.PACKAGE, model.findFunctionDeclaration("pkgFunc")?.access)
         assertEquals(CFMLAccessType.REMOTE, model.findFunctionDeclaration("remFunc")?.access)
 
-        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
-        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
+        val markers = collectLineMarkersForFile(file)
 
         assertEquals(5, markers.size)
         val markerMap = markers.associate {
@@ -495,9 +663,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertEquals(CFMLAccessType.PACKAGE, model.findFunctionDeclaration("pkgTag")?.access)
         assertEquals(CFMLAccessType.REMOTE, model.findFunctionDeclaration("remTag")?.access)
 
-        val lineMarkerProvider = CFMLFunctionUsageLineMarkerProvider()
-        val markers = mutableListOf<com.intellij.codeInsight.daemon.LineMarkerInfo<*>>()
-        lineMarkerProvider.collectSlowLineMarkers(listOf(file), markers)
+        val markers = collectLineMarkersForFile(file)
 
         assertEquals(5, markers.size)
         val markerMap = markers.associate { marker ->
@@ -514,6 +680,80 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         assertEquals(CFMLIcon.FUNCTION_PRIVATE, markerMap["privTag"])
         assertEquals(CFMLIcon.FUNCTION_PRIVATE, markerMap["pkgTag"])
         assertEquals(CFMLIcon.FUNCTION_REMOTE, markerMap["remTag"])
+    }
+
+    @Test
+    fun testEditorHighlightingShowsExactlyOneGutterIconPerFunction() {
+        myFixture.configureByText(
+            "multiFunc.cfc",
+            """
+            component {
+                public function firstFunc() {
+                    return 1;
+                }
+                
+                private function secondFunc() {
+                    return firstFunc();
+                }
+            }
+            """.trimIndent()
+        )
+
+        val gutters = myFixture.findAllGutters()
+        assertEquals("Each function should show at most one indicator in the gutter", 2, gutters.size)
+    }
+
+    @Test
+    fun testEditorHighlightingShowsExactlyOneGutterIconPerTagFunction() {
+        myFixture.configureByText(
+            "tagFuncs.cfm",
+            """
+            <cffunction name="tagFuncOne" access="public">
+                <cfreturn 1>
+            </cffunction>
+            
+            <cffunction name="tagFuncTwo" access="private">
+                <cfreturn tagFuncOne()>
+            </cffunction>
+            """.trimIndent()
+        )
+
+        val gutters = myFixture.findAllGutters()
+        assertEquals("Each tag function should show at most one indicator in the gutter", 2, gutters.size)
+    }
+
+    @Test
+    fun testEditorHighlightingFunctionCallsDoNotCreateGutterIcons() {
+        myFixture.configureByText(
+            "callsOnly.cfm",
+            """
+            <cfoutput>
+                #someBuiltInFunction(1, 2)#
+                #anotherFunctionCall()#
+            </cfoutput>
+            """.trimIndent()
+        )
+
+        val gutters = myFixture.findAllGutters()
+        assertEquals("Function calls should not create any gutter indicators", 0, gutters.size)
+    }
+
+    @Test
+    fun testEditorHighlightingNoGutterIconsForStringOrJsFunctions() {
+        myFixture.configureByText(
+            "jsAndStrings.cfm",
+            """
+            <script type="text/javascript">
+                function clientSideJs() {
+                    console.log("hello");
+                }
+            </script>
+            <cfset var s = "function fake() {}">
+            """.trimIndent()
+        )
+
+        val gutters = myFixture.findAllGutters()
+        assertEquals("No gutter indicators for JS functions or functions inside strings", 0, gutters.size)
     }
 
     @Test

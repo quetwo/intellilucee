@@ -28,12 +28,14 @@ object CFMLModelParser
         val varDecls = mutableListOf<CFMLVariableDeclaration>()
         val varUsages = mutableListOf<CFMLVariableUsage>()
 
-        // 1. Identify masks for comments so we don't parse inside comments
+        // 1. Identify masks for comments, strings, and HTML script blocks so we don't parse inside them
         val commentRanges = findCommentRanges(text)
+        val stringRanges = findStringRanges(text, commentRanges)
+        val htmlScriptRanges = findHtmlScriptRanges(text, commentRanges, stringRanges)
 
         // 2. Extract function declarations (Script & Tag)
-        extractScriptFunctions(text, commentRanges, functionDecls, varDecls)
-        extractTagFunctions(text, commentRanges, functionDecls, varDecls)
+        extractScriptFunctions(text, commentRanges, stringRanges, htmlScriptRanges, functionDecls, varDecls)
+        extractTagFunctions(text, commentRanges, stringRanges, functionDecls, varDecls)
 
         // 3. Extract variable declarations (Script & Tag) outside/inside functions
         extractScriptVariableDeclarations(text, commentRanges, functionDecls, varDecls)
@@ -212,6 +214,76 @@ object CFMLModelParser
         return ranges
     }
 
+    fun findStringRanges(text: String, commentRanges: List<TextRange>): List<TextRange>
+    {
+        val ranges = mutableListOf<TextRange>()
+        var i = 0
+        val len = text.length
+
+        while (i < len)
+        {
+            val commentEnd = getCommentEndIfInside(i, commentRanges)
+            if (commentEnd > i)
+            {
+                i = commentEnd
+                continue
+            }
+
+            val c = text[i]
+            if (c == '"' || c == '\'')
+            {
+                val quote = c
+                val start = i
+                i++
+                while (i < len)
+                {
+                    val ch = text[i]
+                    if (ch == '\\' && i + 1 < len)
+                    {
+                        i += 2
+                        continue
+                    }
+                    if (ch == quote)
+                    {
+                        if (i + 1 < len && text[i + 1] == quote)
+                        {
+                            i += 2
+                            continue
+                        }
+                        i++
+                        break
+                    }
+                    i++
+                }
+                ranges.add(TextRange(start, i))
+            }
+            else
+            {
+                i++
+            }
+        }
+        return ranges
+    }
+
+    private val HTML_SCRIPT_PATTERN = Pattern.compile("""(?i)<script\b([^>]*)>([\s\S]*?)</script>""")
+
+    fun findHtmlScriptRanges(text: String, commentRanges: List<TextRange>, stringRanges: List<TextRange>): List<TextRange>
+    {
+        val ranges = mutableListOf<TextRange>()
+        val matcher = HTML_SCRIPT_PATTERN.matcher(text)
+        while (matcher.find())
+        {
+            val start = matcher.start()
+            val end = matcher.end()
+            if (isInsideRanges(start, commentRanges) || isInsideRanges(start, stringRanges)) continue
+            // Check if opening tag is actually <script> and not <cfscript>
+            val tagContent = text.substring(start, (start + 9).coerceAtMost(text.length))
+            if (tagContent.startsWith("<cfscript", ignoreCase = true)) continue
+            ranges.add(TextRange(start, end))
+        }
+        return ranges
+    }
+
     private val SCRIPT_FUNC_PATTERN = Pattern.compile(
         """(?i)(?:^|[\s;{}])((?:(?:public|private|package|remote|static|final|abstract|default|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*)function\s+([A-Za-z0-9_]+)\s*\(([^)]*)\)"""
     )
@@ -253,6 +325,8 @@ object CFMLModelParser
     private fun extractScriptFunctions(
         text: String,
         commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>,
+        htmlScriptRanges: List<TextRange>,
         functions: MutableList<CFMLFunctionDeclaration>,
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
@@ -268,6 +342,10 @@ object CFMLModelParser
             if (commentEnd > nameStart)
             {
                 if (!matcher.find(commentEnd)) break
+                continue
+            }
+            if (isInsideRanges(nameStart, stringRanges) || isInsideRanges(nameStart, htmlScriptRanges))
+            {
                 continue
             }
 
@@ -297,6 +375,12 @@ object CFMLModelParser
 
             val declRange = TextRange(matcher.start(), funcEnd)
             val nameRange = TextRange(nameStart, nameEnd)
+
+            if (functions.any { it.nameRange == nameRange || (it.name.isNotEmpty() && it.name.equals(name, ignoreCase = true) && it.range.intersects(declRange)) })
+            {
+                continue
+            }
+
             val paramDecls = mutableListOf<CFMLVariableDeclaration>()
             val funcDecl = CFMLFunctionDeclaration(name, nameRange, declRange, bodyRange, paramDecls, access)
             functions.add(funcDecl)
@@ -314,6 +398,10 @@ object CFMLModelParser
             if (commentEnd > start)
             {
                 if (!anonMatcher.find(commentEnd)) break
+                continue
+            }
+            if (isInsideRanges(start, stringRanges) || isInsideRanges(start, htmlScriptRanges))
+            {
                 continue
             }
             val paramsText = anonMatcher.group(1)
@@ -353,6 +441,10 @@ object CFMLModelParser
             if (commentEnd > start)
             {
                 if (!arrowMatcher.find(commentEnd)) break
+                continue
+            }
+            if (isInsideRanges(start, stringRanges) || isInsideRanges(start, htmlScriptRanges))
+            {
                 continue
             }
             val paramsText = arrowMatcher.group(1) ?: arrowMatcher.group(2) ?: ""
@@ -455,6 +547,7 @@ object CFMLModelParser
     private fun extractTagFunctions(
         text: String,
         commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>,
         functions: MutableList<CFMLFunctionDeclaration>,
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
@@ -463,7 +556,7 @@ object CFMLModelParser
         while (matcher.find())
         {
             val start = matcher.start()
-            if (isInsideRanges(start, commentRanges)) continue
+            if (isInsideRanges(start, commentRanges) || isInsideRanges(start, stringRanges)) continue
             val attrs = matcher.group(1)
             val nameMatcher = NAME_ATTR_PATTERN.matcher(attrs)
             if (nameMatcher.find())
@@ -482,6 +575,12 @@ object CFMLModelParser
                     bodyRange = TextRange(matcher.end(), closeMatcher.start())
                 }
                 val access = parseAccessType("", attrs)
+
+                if (functions.any { it.nameRange == nameRange || (it.name.isNotEmpty() && it.name.equals(name, ignoreCase = true) && it.range.intersects(TextRange(start, tagEnd))) })
+                {
+                    continue
+                }
+
                 val paramDecls = mutableListOf<CFMLVariableDeclaration>()
                 val funcDecl = CFMLFunctionDeclaration(name, nameRange, TextRange(start, tagEnd), bodyRange, paramDecls, access)
                 functions.add(funcDecl)

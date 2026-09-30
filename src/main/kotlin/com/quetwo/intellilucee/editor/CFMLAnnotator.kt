@@ -73,7 +73,7 @@ class CFMLAnnotator : Annotator
     {
         val text = file.text ?: return
         val commentRanges = CFMLModelParser.findCommentRanges(text)
-        val stringRanges = findStringRanges(text, commentRanges)
+        val stringRanges = CFMLModelParser.findStringRanges(text, commentRanges)
 
         // 1. Semantic Syntax Highlighting & Function Error Validation via ModelParser
         val model = CFMLModelParser.parse(text)
@@ -319,55 +319,5 @@ class CFMLAnnotator : Annotator
                 .range(unclosed.range)
                 .create()
         }
-    }
-
-    private fun findStringRanges(text: String, commentRanges: List<TextRange>): List<TextRange>
-    {
-        val ranges = mutableListOf<TextRange>()
-        var i = 0
-        val len = text.length
-
-        while (i < len)
-        {
-            if (CFMLModelParser.isInsideRanges(i, commentRanges))
-            {
-                i = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
-                continue
-            }
-
-            val c = text[i]
-            if (c == '"' || c == '\'')
-            {
-                val quote = c
-                val start = i
-                i++
-                while (i < len)
-                {
-                    val ch = text[i]
-                    if (ch == '\\' && i + 1 < len)
-                    {
-                        i += 2
-                        continue
-                    }
-                    if (ch == quote)
-                    {
-                        if (i + 1 < len && text[i + 1] == quote)
-                        {
-                            i += 2
-                            continue
-                        }
-                        i++
-                        break
-                    }
-                    i++
-                }
-                ranges.add(TextRange(start, i))
-            }
-            else
-            {
-                i++
-            }
-        }
-        return ranges
     }
 }
