@@ -21,10 +21,10 @@ class CFMLAnnotator : Annotator
         private val VOID_TAGS = setOf(
             "cfset", "cfelse", "cfelseif", "cfparam", "cfinclude", "cfabort", "cfreturn", "cfbreak", "cfcontinue",
             "cfargument", "cfproperty", "cfdump", "cfheader", "cflocation", "cfthrow", "cfrethrow",
-            "cfdirectory", "cffile", "cfmailparam", "cfhttpparam", "cfprocparam", "cfprocresult",
+            "cfdirectory", "cffile", "cfmailparam", "cfhttpparam", "cfprocparam", "cfprocresult", "cfqueryparam",
             "cfpop", "cffeed", "cfftp", "cfimage", "cfcontent", "cfcookie", "cfsetting",
             "cfassociate", "cfregistry", "cfschedule", "cfcollection", "cfindex", "cfsearch",
-            "cfexecute", "cfchartdata", "cfapplication"
+            "cfchartdata", "cfapplication"
         )
 
         private val EXPRESSION_TAGS = setOf(

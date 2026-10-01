@@ -313,4 +313,78 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
         val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
         assertTrue("No errors should be reported when syntax and error highlighting is disabled", errors.isEmpty())
     }
+
+    @Test
+    fun testCfexecuteTagWithNoContentBetweenProducesNoErrors()
+    {
+        val code = """
+            <cfexecute name = "#temp_folder#taskkill_cmd#unique#.bat"
+              outputFile = "#temp_folder#output2.txt"
+              timeout="2">
+            </cfexecute>
+        """.trimIndent()
+
+        myFixture.configureByText("execute_empty.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for <cfexecute></cfexecute> with no body content, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testCfexecuteTagWithBodyContentProducesNoErrors()
+    {
+        val code = """
+            <cfexecute name="my_app.exe" timeout="10" variable="procOutput">
+                arg1 arg2 arg3
+            </cfexecute>
+        """.trimIndent()
+
+        myFixture.configureByText("execute_with_body.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for <cfexecute> with body, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testCfexecuteSelfClosingTagProducesNoErrors()
+    {
+        val code = """
+            <cfexecute name="ping" arguments="localhost" timeout="5" />
+        """.trimIndent()
+
+        myFixture.configureByText("execute_self_closing.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for self-closing <cfexecute />, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testUnclosedCfexecuteReportsError()
+    {
+        val code = """
+            <cfexecute name="something.bat" timeout="5">
+        """.trimIndent()
+
+        myFixture.configureByText("execute_unclosed.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Should report unclosed cfexecute error", errors.any { it.description != null && it.description.contains("Unclosed tag '<cfexecute>'") })
+    }
+
+    @Test
+    fun testCfqueryparamWithinCfqueryProducesNoErrors()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users
+                WHERE id = <cfqueryparam value="123" cfsqltype="cf_sql_integer">
+                  AND name = <cfqueryparam value="John" cfsqltype="cf_sql_varchar" />
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("queryparam.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for <cfqueryparam> (unclosed or self-closing) in <cfquery>, but got: $errors", errors.isEmpty())
+    }
 }
