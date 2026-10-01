@@ -200,6 +200,39 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
     }
 
     @Test
+    fun testCustomTagsWithoutClosingTagsDoNotProduceErrors()
+    {
+        val code = """
+            <cfif isTrue>
+                <cf_customheader title="Test Page">
+                <div>Content here</div>
+                <cf_customfooter>
+            </cfif>
+            <cf_standalone_tag attr1="val1" attr2="val2">
+        """.trimIndent()
+
+        myFixture.configureByText("custom_tags_unclosed.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for custom tags without closing tags, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testCustomTagsWithClosingTagsProduceNoErrors()
+    {
+        val code = """
+            <cf_my_wrapper param="1">
+                <p>Hello world</p>
+            </cf_my_wrapper>
+        """.trimIndent()
+
+        myFixture.configureByText("custom_tags_paired.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for properly closed custom tags, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
     fun testDisabledSyntaxAndErrorHighlightingSuppressesAnnotations()
     {
         CFMLGlobalSettings.getInstance().state.syntaxAndErrorHighlighting = false

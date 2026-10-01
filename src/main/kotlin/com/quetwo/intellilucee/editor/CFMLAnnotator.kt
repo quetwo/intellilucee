@@ -54,7 +54,8 @@ class CFMLAnnotator : Annotator
     private data class TagInfo(
         val name: String,
         val rawName: String,
-        val range: TextRange
+        val range: TextRange,
+        val isCustomTag: Boolean = false
     )
 
     override fun annotate(element: PsiElement, holder: AnnotationHolder)
@@ -309,11 +310,16 @@ class CFMLAnnotator : Annotator
                     continue
                 }
 
+                val isCustomTag = tagName.startsWith("cf_")
+
                 if (tagStack.isEmpty())
                 {
-                    holder.newAnnotation(HighlightSeverity.ERROR, "Unmatched closing tag '</$rawName>'")
-                        .range(tagRange)
-                        .create()
+                    if (!isCustomTag)
+                    {
+                        holder.newAnnotation(HighlightSeverity.ERROR, "Unmatched closing tag '</$rawName>'")
+                            .range(tagRange)
+                            .create()
+                    }
                 }
                 else if (tagStack.last().name.equals(tagName, ignoreCase = true))
                 {
@@ -327,18 +333,41 @@ class CFMLAnnotator : Annotator
                         while (tagStack.size > matchIndex + 1)
                         {
                             val unclosed = tagStack.removeLast()
-                            holder.newAnnotation(HighlightSeverity.ERROR, "Unclosed tag '<${unclosed.rawName}>'")
-                                .range(unclosed.range)
-                                .create()
+                            if (!unclosed.isCustomTag)
+                            {
+                                holder.newAnnotation(HighlightSeverity.ERROR, "Unclosed tag '<${unclosed.rawName}>'")
+                                    .range(unclosed.range)
+                                    .create()
+                            }
                         }
                         tagStack.removeLast()
                     }
                     else
                     {
-                        val expected = tagStack.last().rawName
-                        holder.newAnnotation(HighlightSeverity.ERROR, "Mismatched closing tag '</$rawName>', expected '</$expected>'")
-                            .range(tagRange)
-                            .create()
+                        // Check if previous tags on stack are custom tags that weren't closed
+                        // If we can pop preceding custom tags and find a match for this closing tag, pop them without error
+                        var foundMatchingAncestor = false
+                        // Check if all intervening tags between current and a matching ancestor are custom tags
+                        val potentialIndex = tagStack.indexOfLast { it.name.equals(tagName, ignoreCase = true) }
+                        if (potentialIndex != -1 && (potentialIndex + 1 until tagStack.size).all { tagStack[it].isCustomTag })
+                        {
+                            while (tagStack.size > potentialIndex)
+                            {
+                                tagStack.removeLast()
+                            }
+                            foundMatchingAncestor = true
+                        }
+
+                        if (!foundMatchingAncestor)
+                        {
+                            if (!isCustomTag)
+                            {
+                                val expected = tagStack.last().rawName
+                                holder.newAnnotation(HighlightSeverity.ERROR, "Mismatched closing tag '</$rawName>', expected '</$expected>'")
+                                    .range(tagRange)
+                                    .create()
+                            }
+                        }
                     }
                 }
             }
@@ -351,6 +380,7 @@ class CFMLAnnotator : Annotator
                     continue
                 }
 
+                val isCustomTag = tagName.startsWith("cf_")
                 val attributes = matcher.group(3) ?: ""
                 val closingSlash = matcher.group(4) ?: ""
                 val isSelfClosing = closingSlash == "/>" || VOID_TAGS.contains(tagName)
@@ -429,7 +459,7 @@ class CFMLAnnotator : Annotator
 
                 if (!isSelfClosing)
                 {
-                    tagStack.addLast(TagInfo(tagName, rawName, tagRange))
+                    tagStack.addLast(TagInfo(tagName, rawName, tagRange, isCustomTag))
                 }
             }
         }
@@ -437,9 +467,12 @@ class CFMLAnnotator : Annotator
         // Any remaining unclosed tags
         for (unclosed in tagStack)
         {
-            holder.newAnnotation(HighlightSeverity.ERROR, "Unclosed tag '<${unclosed.rawName}>'")
-                .range(unclosed.range)
-                .create()
+            if (!unclosed.isCustomTag)
+            {
+                holder.newAnnotation(HighlightSeverity.ERROR, "Unclosed tag '<${unclosed.rawName}>'")
+                    .range(unclosed.range)
+                    .create()
+            }
         }
     }
 }
