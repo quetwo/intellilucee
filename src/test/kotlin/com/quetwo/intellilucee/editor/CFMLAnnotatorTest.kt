@@ -233,6 +233,71 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
     }
 
     @Test
+    fun testEmptyCfifBlockAndCommentsOnlyProducesNoErrors()
+    {
+        val code = """
+            <cfif condition>
+                <!--- just a comment --->
+            </cfif>
+
+            <cfif condition2>
+            </cfif>
+
+            <cfif condition3>
+                <!--- First comment --->
+                <!--- Second nested comment <!--- deep ---> --->
+            <cfelseif condition4>
+                <!--- comment inside cfelseif --->
+            <cfelse>
+                <!--- comment inside cfelse --->
+            </cfif>
+
+            <cfif isSomething>
+                <!-- HTML comment inside cfif -->
+            </cfif>
+
+            <cfif checkSomething>
+                // single line comment
+                /* multi line
+                   comment */
+            </cfif>
+        """.trimIndent()
+
+        myFixture.configureByText("empty_cfif.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for cfif with no executable code, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testScriptIfWithEmptyBodyOrCommentsOnlyProducesNoErrors()
+    {
+        val code = """
+            function testIf() {
+                if (true) {
+                    // comment only
+                }
+
+                if (false) {
+                    /* block comment only */
+                }
+
+                if (condition) {
+                } else if (other) {
+                    // comment
+                } else {
+                    /* comment */
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("empty_script_if.cfs", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for script if with no executable code, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
     fun testDisabledSyntaxAndErrorHighlightingSuppressesAnnotations()
     {
         CFMLGlobalSettings.getInstance().state.syntaxAndErrorHighlighting = false
