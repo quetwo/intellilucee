@@ -155,6 +155,51 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
     }
 
     @Test
+    fun testPoundSignOutsideCfoutputDoesNotProduceError()
+    {
+        val code = """
+            <div>This is item #1 on the list, color is #FF0000, and channel is #general.</div>
+            <p>Welcome to our page #</p>
+        """.trimIndent()
+
+        myFixture.configureByText("pound_plain_text.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for pound signs outside cfoutput, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testPoundSignInsideCfoutputReportsUnclosedHashError()
+    {
+        val code = """
+            <cfoutput>
+                <div>Hello #name and welcome!</div>
+            </cfoutput>
+        """.trimIndent()
+
+        myFixture.configureByText("unclosed_hash_cfoutput.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Should report unclosed hash error inside cfoutput", errors.any { it.description != null && it.description.contains("Unclosed hash expression") })
+    }
+
+    @Test
+    fun testPoundSignInsideCfoutputValidInterpolationProducesNoError()
+    {
+        val code = """
+            <cfoutput>
+                <div>Hello #name# and welcome!</div>
+                <div>Escaped ## pound signs ##</div>
+            </cfoutput>
+        """.trimIndent()
+
+        myFixture.configureByText("valid_cfoutput.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for valid hash expressions inside cfoutput, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
     fun testDisabledSyntaxAndErrorHighlightingSuppressesAnnotations()
     {
         CFMLGlobalSettings.getInstance().state.syntaxAndErrorHighlighting = false

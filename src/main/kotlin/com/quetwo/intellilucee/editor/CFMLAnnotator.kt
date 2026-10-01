@@ -31,6 +31,17 @@ class CFMLAnnotator : Annotator
             "cfset", "cfif", "cfelseif", "cfreturn", "cfbreak", "cfcontinue", "cfabort", "cfthrow", "cfrethrow"
         )
 
+        /**
+         * Tags that evaluate/process hash expressions (#...#) within their body content.
+         */
+        private val VARIABLE_PROCESSING_BODY_TAGS = setOf(
+            "cfoutput", "cfquery", "cfmail", "cfsavecontent", "cfxml", "cfdocument",
+            "cfdocumentsection", "cfdocumentitem", "cfpdf", "cfreport", "cfchart",
+            "cfchartseries", "cfchartdata", "cftable", "cfgrid", "cftree", "cfpop",
+            "cfldap", "cfhttp", "cfzip", "cffile", "cfdirectory", "cfregistry", "cflogin",
+            "cfstoredproc", "cfqueryparam", "cftransaction", "cflock", "cfthread", "cfscript"
+        )
+
         private val TAG_PATTERN = Pattern.compile(
             """(?:</\s*([a-zA-Z0-9_:\-]+)\s*>)|(?:<([a-zA-Z0-9_:\-]+)((?:[^'">]|"[^"]*"|'[^']*')*?)(\/?>))"""
         )
@@ -106,29 +117,140 @@ class CFMLAnnotator : Annotator
                 .create()
         }
 
-        // 2. Hash interpolation validation inside strings
-        for (strRange in stringRanges)
-        {
-            val strContent = text.substring(strRange.startOffset, strRange.endOffset)
-            validateStringHashes(strContent, strRange.startOffset, holder)
-        }
+        // 2. Hash interpolation validation inside variable-processing contexts
+        validateHashExpressions(text, commentRanges, stringRanges, holder)
 
         // 3. Tag Matching and Tag Structural Error Validation
         validateTags(text, commentRanges, stringRanges, holder)
     }
 
-    private fun validateStringHashes(content: String, baseOffset: Int, holder: AnnotationHolder)
+    private fun validateHashExpressions(
+        text: String,
+        commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>,
+        holder: AnnotationHolder
+    )
     {
-        var i = 1
-        val len = content.length - 1
+        val variableRanges = findVariableProcessingRanges(text, commentRanges, stringRanges)
+
+        for (range in variableRanges)
+        {
+            validateSegmentHashes(text, range, commentRanges, holder)
+        }
+    }
+
+    private fun findVariableProcessingRanges(
+        text: String,
+        commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>
+    ): List<TextRange>
+    {
+        val ranges = mutableListOf<TextRange>()
+        val tagStack = ArrayDeque<Pair<String, Int>>() // Pair(tagName, bodyStartOffset)
+        val matcher = TAG_PATTERN.matcher(text)
+
+        var isScriptFile = !text.contains("<cf", ignoreCase = true) && !text.contains("<html", ignoreCase = true)
+
+        if (isScriptFile)
+        {
+            // Entire file is script
+            return listOf(TextRange(0, text.length))
+        }
+
+        while (matcher.find())
+        {
+            val start = matcher.start()
+            val end = matcher.end()
+
+            if (CFMLModelParser.isInsideRanges(start, commentRanges) || CFMLModelParser.isInsideRanges(start, stringRanges))
+            {
+                continue
+            }
+
+            val closingTagName = matcher.group(1)
+            val openingTagName = matcher.group(2)
+
+            if (closingTagName != null)
+            {
+                val tagName = closingTagName.lowercase()
+                if (tagStack.isNotEmpty())
+                {
+                    val last = tagStack.last()
+                    if (last.first.equals(tagName, ignoreCase = true))
+                    {
+                        tagStack.removeLast()
+                        if (VARIABLE_PROCESSING_BODY_TAGS.contains(tagName))
+                        {
+                            if (start > last.second)
+                            {
+                                ranges.add(TextRange(last.second, start))
+                            }
+                        }
+                    }
+                    else
+                    {
+                        val matchIndex = tagStack.indexOfLast { it.first.equals(tagName, ignoreCase = true) }
+                        if (matchIndex != -1)
+                        {
+                            val matched = tagStack[matchIndex]
+                            while (tagStack.size > matchIndex)
+                            {
+                                tagStack.removeLast()
+                            }
+                            if (VARIABLE_PROCESSING_BODY_TAGS.contains(tagName))
+                            {
+                                if (start > matched.second)
+                                {
+                                    ranges.add(TextRange(matched.second, start))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else if (openingTagName != null)
+            {
+                val tagName = openingTagName.lowercase()
+                val closingSlash = matcher.group(4) ?: ""
+                val isSelfClosing = closingSlash == "/>" || VOID_TAGS.contains(tagName)
+
+                // Attributes of tags (e.g. <cfset x = "#val#">, <a href="#url#">) always process variables/hashes
+                ranges.add(TextRange(start, end))
+
+                if (!isSelfClosing)
+                {
+                    tagStack.addLast(Pair(tagName, end))
+                }
+            }
+        }
+
+        return ranges
+    }
+
+    private fun validateSegmentHashes(
+        text: String,
+        range: TextRange,
+        commentRanges: List<TextRange>,
+        holder: AnnotationHolder
+    )
+    {
+        var i = range.startOffset
+        val end = range.endOffset
         var hashStart = -1
 
-        while (i < len)
+        while (i < end)
         {
-            val c = content[i]
+            val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
+            if (commentEnd > i)
+            {
+                i = commentEnd
+                continue
+            }
+
+            val c = text[i]
             if (c == '#')
             {
-                if (i + 1 < len && content[i + 1] == '#')
+                if (i + 1 < end && text[i + 1] == '#')
                 {
                     i += 2
                     continue
@@ -147,7 +269,7 @@ class CFMLAnnotator : Annotator
 
         if (hashStart != -1)
         {
-            val errorRange = TextRange(baseOffset + hashStart, baseOffset + content.length)
+            val errorRange = TextRange(hashStart, end)
             holder.newAnnotation(HighlightSeverity.ERROR, "Unclosed hash expression")
                 .range(errorRange)
                 .create()
