@@ -218,11 +218,6 @@ public class CFMLWordsScanner implements WordsScanner
                 while (i < len)
                 {
                     char ch = fileText.charAt(i);
-                    if (ch == '\\' && i + 1 < len)
-                    {
-                        i += 2;
-                        continue;
-                    }
                     if (ch == quote)
                     {
                         if (i + 1 < len && fileText.charAt(i + 1) == quote)
@@ -241,7 +236,7 @@ public class CFMLWordsScanner implements WordsScanner
                         while (i < len)
                         {
                             char wch = fileText.charAt(i);
-                            if (wch == quote || (wch == '\\' && i + 1 < len))
+                            if (wch == quote)
                             {
                                 break;
                             }

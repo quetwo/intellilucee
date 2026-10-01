@@ -303,11 +303,6 @@ public class CFMLLexer extends LexerBase
             while (i < bufferEnd)
             {
                 char ch = buffer.charAt(i);
-                if (ch == '\\' && i + 1 < bufferEnd)
-                {
-                    i += 2;
-                    continue;
-                }
                 if (ch == quote)
                 {
                     if (i + 1 < bufferEnd && buffer.charAt(i + 1) == quote)

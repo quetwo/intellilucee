@@ -238,11 +238,6 @@ object CFMLModelParser
                 while (i < len)
                 {
                     val ch = text[i]
-                    if (ch == '\\' && i + 1 < len)
-                    {
-                        i += 2
-                        continue
-                    }
                     if (ch == quote)
                     {
                         if (i + 1 < len && text[i + 1] == quote)

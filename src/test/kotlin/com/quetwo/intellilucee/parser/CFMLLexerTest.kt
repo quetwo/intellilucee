@@ -175,6 +175,36 @@ class CFMLLexerTest {
     }
 
     @Test
+    fun testStringsWithBackslashesAndEscapes() {
+        val code = "findOneOf( '/\\', action ) gt 0"
+        val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.IDENTIFIER, tokens[0].second)
+        assertEquals("findOneOf", tokens[0].first)
+        assertEquals(CFMLTokenTypes.LPAREN, tokens[1].second)
+        assertEquals(CFMLTokenTypes.SINGLE_QUOTED_STRING, tokens[2].second)
+        assertEquals("'/\\'", tokens[2].first)
+        assertEquals(CFMLTokenTypes.COMMA, tokens[3].second)
+        assertEquals(CFMLTokenTypes.IDENTIFIER, tokens[4].second)
+        assertEquals("action", tokens[4].first)
+        assertEquals(CFMLTokenTypes.RPAREN, tokens[5].second)
+        assertEquals(CFMLTokenTypes.OP_GT, tokens[6].second)
+        assertEquals(CFMLTokenTypes.INTEGER_LITERAL, tokens[7].second)
+        assertEquals("0", tokens[7].first)
+
+        val doubleQuoteCode = "\"C:\\path\\to\\file\""
+        val doubleQuoteTokens = tokenize(doubleQuoteCode).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.DOUBLE_QUOTED_STRING, doubleQuoteTokens[0].second)
+        assertEquals("\"C:\\path\\to\\file\"", doubleQuoteTokens[0].first)
+
+        val doubledQuotesCode = "'it''s' \"say \"\"hello\"\"\""
+        val doubledQuotesTokens = tokenize(doubledQuotesCode).filter { it.second != TokenType.WHITE_SPACE }
+        assertEquals(CFMLTokenTypes.SINGLE_QUOTED_STRING, doubledQuotesTokens[0].second)
+        assertEquals("'it''s'", doubledQuotesTokens[0].first)
+        assertEquals(CFMLTokenTypes.DOUBLE_QUOTED_STRING, doubledQuotesTokens[1].second)
+        assertEquals("\"say \"\"hello\"\"\"", doubledQuotesTokens[1].first)
+    }
+
+    @Test
     fun testTags() {
         val code = "<cfset x = 1><cffunction name=\"myFunc\" access=\"public\"></cffunction><div class=\"test\"></div>"
         val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }

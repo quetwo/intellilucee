@@ -105,7 +105,7 @@ class CFMLWordsScannerTest {
     @Test
     fun testStringLiteralsWords() {
         val code = """
-            var message = "Hello, \"World\" from CFML!";
+            var message = "Hello, ""World"" from CFML!";
             var query = 'SELECT * FROM "table" WHERE name = ''John''';
         """.trimIndent()
 

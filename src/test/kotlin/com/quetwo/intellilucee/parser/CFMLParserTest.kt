@@ -114,4 +114,20 @@ class CFMLParserTest : BasePlatformTestCase() {
         assertNotNull(file)
         assertNotNull(file.node)
     }
+
+    @Test
+    fun testParseFunctionCallWithStringContainingBackslash() {
+        val file = myFixture.configureByText(
+            "testFindOneOf.cfs",
+            """
+            if (findOneOf( '/\', action ) gt 0) {
+                writeOutput("Found slash");
+            }
+            """.trimIndent()
+        )
+
+        assertNotNull(file)
+        assertNotNull(file.node)
+        assertTrue(file.node.getChildren(null).isNotEmpty())
+    }
 }
