@@ -27,6 +27,7 @@ object CFMLModelParser
         val functionCalls = mutableListOf<CFMLFunctionCall>()
         val varDecls = mutableListOf<CFMLVariableDeclaration>()
         val varUsages = mutableListOf<CFMLVariableUsage>()
+        val queryDecls = mutableListOf<CFMLQueryDeclaration>()
 
         // 1. Identify masks for comments, strings, and HTML script blocks so we don't parse inside them
         val commentRanges = findCommentRanges(text)
@@ -40,6 +41,7 @@ object CFMLModelParser
         // 3. Extract variable declarations (Script & Tag) outside/inside functions
         extractScriptVariableDeclarations(text, commentRanges, functionDecls, varDecls)
         extractTagVariableDeclarations(text, commentRanges, functionDecls, varDecls)
+        extractQueryDeclarations(text, commentRanges, functionDecls, varDecls, queryDecls)
 
         // 4. Extract function calls
         extractFunctionCalls(text, commentRanges, functionDecls, functionCalls)
@@ -47,7 +49,7 @@ object CFMLModelParser
         // 5. Extract variable usages
         extractVariableUsages(text, commentRanges, functionDecls, varDecls, functionCalls, varUsages)
 
-        return CFMLDocumentModel(functionDecls, functionCalls, varDecls, varUsages, commentRanges)
+        return CFMLDocumentModel(functionDecls, functionCalls, varDecls, varUsages, commentRanges, queryDecls)
     }
 
     fun findInnermostEnclosingFunction(offset: Int, functions: List<CFMLFunctionDeclaration>): CFMLFunctionDeclaration?
@@ -1284,6 +1286,263 @@ object CFMLModelParser
                 varDecls.add(decl)
             }
         }
+    }
+
+    private val CFQUERY_TAG_PATTERN = Pattern.compile("""(?is)<cfquery\b([^>]*)>(.*?)(?:</cfquery>|\z)""")
+    private val CFQUERY_NAME_PATTERN = Pattern.compile("""(?i)\bname\s*=\s*["']?((?:(?:local|variables)\.)?([A-Za-z0-9_]+))["']?""")
+
+    private fun extractQueryDeclarations(
+        text: String,
+        commentRanges: List<TextRange>,
+        functions: List<CFMLFunctionDeclaration>,
+        varDecls: MutableList<CFMLVariableDeclaration>,
+        queryDecls: MutableList<CFMLQueryDeclaration>)
+    {
+        val nameScopeSet = HashSet<String>()
+        for (d in varDecls)
+        {
+            nameScopeSet.add("${d.name.lowercase()}#${d.enclosingFunction?.range?.startOffset ?: -1}")
+        }
+
+        val matcher = CFQUERY_TAG_PATTERN.matcher(text)
+        while (matcher.find())
+        {
+            val start = matcher.start()
+            val commentEnd = getCommentEndIfInside(start, commentRanges)
+            if (commentEnd > start)
+            {
+                if (!matcher.find(commentEnd)) break
+                continue
+            }
+
+            val attrs = matcher.group(1)
+            val nameM = CFQUERY_NAME_PATTERN.matcher(attrs)
+            if (nameM.find())
+            {
+                val fullVar = nameM.group(1)
+                val name = nameM.group(2)
+                val nameStart = matcher.start(1) + nameM.start(2)
+                val nameEnd = matcher.start(1) + nameM.end(2)
+                val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
+                val isLocal = enclosingFunc != null || fullVar.lowercase().startsWith("local.")
+
+                val sqlBody = matcher.group(2)
+                val columns = extractSqlColumns(sqlBody)
+
+                val queryDecl = CFMLQueryDeclaration(
+                    name,
+                    TextRange(nameStart, nameEnd),
+                    TextRange(matcher.start(), matcher.end()),
+                    columns = columns,
+                    isLocal = isLocal,
+                    enclosingFunction = enclosingFunc
+                )
+                queryDecls.add(queryDecl)
+
+                val varDecl = CFMLVariableDeclaration(
+                    name,
+                    TextRange(nameStart, nameEnd),
+                    TextRange(matcher.start(), matcher.end()),
+                    isLocal = isLocal,
+                    enclosingFunction = enclosingFunc
+                )
+                val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
+                if (nameScopeSet.add(key))
+                {
+                    varDecls.add(varDecl)
+                }
+            }
+        }
+    }
+
+    fun extractSqlColumns(rawSql: String): List<String>
+    {
+        if (rawSql.isBlank()) return emptyList()
+
+        // 1. Strip comments and CFML tags
+        var sql = rawSql.replace(Regex("""<!---.*?--->""", RegexOption.DOT_MATCHES_ALL), " ")
+        sql = sql.replace(Regex("""/\*.*?\*/""", RegexOption.DOT_MATCHES_ALL), " ")
+        sql = sql.replace(Regex("""--[^\r\n]*"""), " ")
+        sql = sql.replace(Regex("""<[^>]+>""", RegexOption.DOT_MATCHES_ALL), " ")
+
+        // 2. Find the top-level SELECT clause
+        val selectMatch = Regex("""(?i)\bSELECT\b""").find(sql) ?: return emptyList()
+        var afterSelect = selectMatch.range.last + 1
+
+        // Skip SELECT modifiers: DISTINCT, ALL, TOP <number> [PERCENT] [WITH TIES]
+        val remaining = sql.substring(afterSelect)
+        val modMatch = Regex("""(?i)^\s*(?:DISTINCT\b|ALL\b)?\s*(?:TOP\s+\d+\s*(?:PERCENT\b)?(?:\s+WITH\s+TIES\b)?)?\s*""").find(remaining)
+        if (modMatch != null)
+        {
+            afterSelect += modMatch.value.length
+        }
+
+        // 3. Find the end of the SELECT column list (e.g. FROM, WHERE, ORDER BY, GROUP BY, HAVING, UNION, ;, or end of SQL) at parenDepth == 0
+        var parenDepth = 0
+        var bracketDepth = 0
+        var selectEnd = sql.length
+        val len = sql.length
+        var i = afterSelect
+
+        while (i < len)
+        {
+            val c = sql[i]
+            when (c)
+            {
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                '[' -> bracketDepth++
+                ']' -> if (bracketDepth > 0) bracketDepth--
+                else -> {
+                    if (parenDepth == 0 && bracketDepth == 0)
+                    {
+                        if (c == ';')
+                        {
+                            selectEnd = i
+                            break
+                        }
+                        val sub = sql.substring(i)
+                        val clauseMatch = Regex("""(?i)^\b(?:FROM|WHERE|ORDER\s+BY|GROUP\s+BY|HAVING|UNION|INTO)\b""").find(sub)
+                        if (clauseMatch != null)
+                        {
+                            selectEnd = i
+                            break
+                        }
+                    }
+                }
+            }
+            i++
+        }
+
+        val columnClause = sql.substring(afterSelect, selectEnd).trim()
+        if (columnClause.isEmpty()) return emptyList()
+
+        // 4. Split columns by top-level commas
+        val items = mutableListOf<String>()
+        var itemStart = 0
+        parenDepth = 0
+        bracketDepth = 0
+
+        for (idx in columnClause.indices)
+        {
+            val c = columnClause[idx]
+            when (c)
+            {
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                '[' -> bracketDepth++
+                ']' -> if (bracketDepth > 0) bracketDepth--
+                ',' -> {
+                    if (parenDepth == 0 && bracketDepth == 0)
+                    {
+                        items.add(columnClause.substring(itemStart, idx).trim())
+                        itemStart = idx + 1
+                    }
+                }
+            }
+        }
+        if (itemStart < columnClause.length)
+        {
+            items.add(columnClause.substring(itemStart).trim())
+        }
+
+        // 5. Extract column identifiers
+        val columns = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+
+        for (item in items)
+        {
+            val col = extractSingleColumnName(item)
+            if (col != null && col.isNotEmpty() && seen.add(col.lowercase()))
+            {
+                columns.add(col)
+            }
+        }
+
+        return columns
+    }
+
+    private fun extractSingleColumnName(item: String): String?
+    {
+        val trimmed = item.trim()
+        if (trimmed.isEmpty() || trimmed == "*" || trimmed.endsWith(".*")) return null
+
+        // Case A: Check for AS alias, e.g. `col AS alias` or `expr AS alias` or `[table].[col] AS [alias]`
+        val asMatch = Regex("""(?is)^.+\bAS\s+([`"\[]?\w+[`"\]]?)$""").find(trimmed)
+        if (asMatch != null)
+        {
+            return cleanColumnIdentifier(asMatch.groupValues[1])
+        }
+
+        // Case B: Check if ends with an unquoted/quoted alias without AS, e.g. `t.user_id userId` or `COUNT(*) totalCount`
+        // We find the last token at top-level
+        var parenDepth = 0
+        var bracketDepth = 0
+        var lastSpaceAtZero = -1
+
+        for (i in trimmed.indices)
+        {
+            val c = trimmed[i]
+            when (c)
+            {
+                '(' -> parenDepth++
+                ')' -> if (parenDepth > 0) parenDepth--
+                '[' -> bracketDepth++
+                ']' -> if (bracketDepth > 0) bracketDepth--
+                ' ', '\t', '\n', '\r' -> {
+                    if (parenDepth == 0 && bracketDepth == 0)
+                    {
+                        lastSpaceAtZero = i
+                    }
+                }
+            }
+        }
+
+        if (lastSpaceAtZero > 0)
+        {
+            val candidateAlias = trimmed.substring(lastSpaceAtZero + 1).trim()
+            if (candidateAlias.isNotEmpty())
+            {
+                val cleaned = cleanColumnIdentifier(candidateAlias)
+                if (cleaned != null)
+                {
+                    return cleaned
+                }
+            }
+        }
+
+        // Case C: Single column expression with possible table prefix, e.g. `table1.userID` or `[userID]` or `userID`
+        val cleanExpr = trimmed.trim()
+        val afterDot = if (cleanExpr.contains('.')) cleanExpr.substringAfterLast('.') else cleanExpr
+        return cleanColumnIdentifier(afterDot)
+    }
+
+    private fun cleanColumnIdentifier(identifier: String): String?
+    {
+        var cleaned = identifier.trim()
+        if (cleaned.startsWith('[') && cleaned.endsWith(']'))
+        {
+            cleaned = cleaned.substring(1, cleaned.length - 1)
+        }
+        else if (cleaned.startsWith('`') && cleaned.endsWith('`'))
+        {
+            cleaned = cleaned.substring(1, cleaned.length - 1)
+        }
+        else if (cleaned.startsWith('"') && cleaned.endsWith('"'))
+        {
+            cleaned = cleaned.substring(1, cleaned.length - 1)
+        }
+        else if (cleaned.startsWith('\'') && cleaned.endsWith('\''))
+        {
+            cleaned = cleaned.substring(1, cleaned.length - 1)
+        }
+        cleaned = cleaned.trim()
+
+        if (cleaned.matches(Regex("""[A-Za-z0-9_]+""")) && !KEYWORDS.contains(cleaned.lowercase()))
+        {
+            return cleaned
+        }
+        return null
     }
 
     private fun extractFunctionCalls(

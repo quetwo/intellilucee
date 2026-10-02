@@ -39,6 +39,15 @@ data class CFMLVariableDeclaration(
     val enclosingFunction: CFMLFunctionDeclaration?
 ) : CFMLSymbol
 
+data class CFMLQueryDeclaration(
+    override val name: String,
+    val nameRange: TextRange,
+    override val range: TextRange,
+    val columns: List<String> = emptyList(),
+    val isLocal: Boolean = false,
+    val enclosingFunction: CFMLFunctionDeclaration? = null
+) : CFMLSymbol
+
 data class CFMLVariableUsage(
     override val name: String,
     val nameRange: TextRange,
@@ -56,7 +65,8 @@ class CFMLDocumentModel(
     val functionCalls: List<CFMLFunctionCall>,
     val variableDeclarations: List<CFMLVariableDeclaration>,
     val variableUsages: List<CFMLVariableUsage>,
-    val commentRanges: List<TextRange> = emptyList())
+    val commentRanges: List<TextRange> = emptyList(),
+    val queryDeclarations: List<CFMLQueryDeclaration> = emptyList())
 {
     private val functionUsageCounts: Map<String, Int> = buildMap {
         for (call in functionCalls)
@@ -203,6 +213,27 @@ class CFMLDocumentModel(
             variableUsages.filter {
                 cleanVariableName(it.name).equals(bareName, ignoreCase = true)
             }
+        }
+    }
+
+    fun findQueryDeclaration(name: String, offset: Int = 0): CFMLQueryDeclaration?
+    {
+        val bareName = cleanVariableName(name)
+        val enclosingFunctions = findEnclosingFunctionHierarchy(offset)
+        if (enclosingFunctions.isNotEmpty())
+        {
+            for (enclosingFunc in enclosingFunctions)
+            {
+                val localDecl = queryDeclarations.firstOrNull {
+                    it.enclosingFunction == enclosingFunc && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+                }
+                if (localDecl != null) return localDecl
+            }
+        }
+        return queryDeclarations.firstOrNull {
+            it.enclosingFunction == null && cleanVariableName(it.name).equals(bareName, ignoreCase = true)
+        } ?: queryDeclarations.firstOrNull {
+            cleanVariableName(it.name).equals(bareName, ignoreCase = true)
         }
     }
 
