@@ -535,4 +535,69 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
         val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
         assertTrue("Expected no errors for <cfquery> with '-- If we\\'ve been notifying', but got: $errors", errors.isEmpty())
     }
+
+    @Test
+    fun testSqlInjectionQuickFixConvertToCfqueryparam()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users WHERE id = <caret>#userId#
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("quickfix_test.cfm", code)
+        myFixture.doHighlighting()
+        val availableIntentions = myFixture.availableIntentions
+        val fixAction = availableIntentions.find { it.text == "Convert to <cfqueryparam>" }
+        assertNotNull("Should provide 'Convert to <cfqueryparam>' intention action", fixAction)
+        myFixture.launchAction(fixAction!!)
+        myFixture.checkResult("""
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users WHERE id = <cfqueryparam value="#userId#">
+            </cfquery>
+        """.trimIndent())
+    }
+
+    @Test
+    fun testSqlInjectionQuickFixConvertToCfqueryparamQuoted()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users WHERE username = '<caret>#username#'
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("quickfix_quoted_test.cfm", code)
+        myFixture.doHighlighting()
+        val availableIntentions = myFixture.availableIntentions
+        val fixAction = availableIntentions.find { it.text == "Convert to <cfqueryparam>" }
+        assertNotNull("Should provide 'Convert to <cfqueryparam>' intention action", fixAction)
+        myFixture.launchAction(fixAction!!)
+        myFixture.checkResult("""
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users WHERE username = <cfqueryparam value="#username#">
+            </cfquery>
+        """.trimIndent())
+    }
+
+    @Test
+    fun testSqlInjectionQuickFixIgnoreError()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users WHERE id = <caret>#userId#
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("quickfix_ignore_test.cfm", code)
+        myFixture.doHighlighting()
+        val availableIntentions = myFixture.availableIntentions
+        val ignoreAction = availableIntentions.find { it.text == "Ignore SQL injection warning" }
+        assertNotNull("Should provide 'Ignore SQL injection warning' intention action", ignoreAction)
+        myFixture.launchAction(ignoreAction!!)
+        
+        val newHighlights = myFixture.doHighlighting()
+        val errors = newHighlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no SQL injection errors after applying ignore quick fix, but got: $errors", errors.isEmpty())
+    }
 }

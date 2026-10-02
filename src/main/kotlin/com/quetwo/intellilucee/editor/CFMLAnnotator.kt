@@ -1,16 +1,21 @@
 package com.quetwo.intellilucee.editor
 
+import com.intellij.codeInsight.intention.IntentionAction
+import com.intellij.codeInspection.util.IntentionFamilyName
+import com.intellij.codeInspection.util.IntentionName
 import com.intellij.lang.Language
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileTypes.SyntaxHighlighter
 import com.intellij.openapi.fileTypes.SyntaxHighlighterFactory
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.TokenType
 import com.quetwo.intellilucee.model.CFMLModelParser
 import com.quetwo.intellilucee.parser.CFMLTokenTypes
@@ -77,6 +82,7 @@ class CFMLAnnotator : Annotator
     )
 
     private data class QueryBlock(
+        val queryTagRange: TextRange,
         val bodyRange: TextRange
     )
 
@@ -521,6 +527,9 @@ class CFMLAnnotator : Annotator
                 continue
             }
 
+            // Check if SQL injection warning is suppressed for this query block or file
+            val isIgnored = isSqlInjectionIgnored(text, block, commentRanges)
+
             val nestedTagMatcher = TAG_PATTERN.matcher(text)
             nestedTagMatcher.region(bodyStart, bodyEnd)
 
@@ -546,9 +555,14 @@ class CFMLAnnotator : Annotator
                 if (closing == "cfoutput" || opening == "cfoutput")
                 {
                     outputTagRanges.add(tagRange)
-                    holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
-                        .range(tagRange)
-                        .create()
+                    if (!isIgnored)
+                    {
+                        holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
+                            .range(tagRange)
+                            .withFix(ConvertToCfqueryparamQuickFix(tagRange))
+                            .withFix(IgnoreSqlInjectionQuickFix(block.queryTagRange.startOffset))
+                            .create()
+                    }
                 }
                 else if (opening == "cfqueryparam")
                 {
@@ -616,17 +630,27 @@ class CFMLAnnotator : Annotator
                     if (hashEnd != -1)
                     {
                         val hashExprRange = TextRange(i, hashEnd + 1)
-                        holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
-                            .range(hashExprRange)
-                            .create()
+                        if (!isIgnored)
+                        {
+                            holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
+                                .range(hashExprRange)
+                                .withFix(ConvertToCfqueryparamQuickFix(hashExprRange))
+                                .withFix(IgnoreSqlInjectionQuickFix(block.queryTagRange.startOffset))
+                                .create()
+                        }
                         i = hashEnd + 1
                     }
                     else
                     {
                         val hashExprRange = TextRange(i, bodyEnd)
-                        holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
-                            .range(hashExprRange)
-                            .create()
+                        if (!isIgnored)
+                        {
+                            holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
+                                .range(hashExprRange)
+                                .withFix(ConvertToCfqueryparamQuickFix(hashExprRange))
+                                .withFix(IgnoreSqlInjectionQuickFix(block.queryTagRange.startOffset))
+                                .create()
+                        }
                         break
                     }
                 }
@@ -705,6 +729,33 @@ class CFMLAnnotator : Annotator
         }
     }
 
+    private fun isSqlInjectionIgnored(
+        text: String,
+        block: QueryBlock,
+        commentRanges: List<TextRange>
+    ): Boolean
+    {
+        val blockExtendedStart = maxOf(0, text.lastIndexOf('\n', (block.queryTagRange.startOffset - 1).coerceAtLeast(0)).let { if (it == -1) 0 else it })
+        val relevantComments = commentRanges.filter {
+            (it.startOffset in blockExtendedStart..block.bodyRange.endOffset) ||
+            (it.endOffset in blockExtendedStart..block.bodyRange.endOffset)
+        }
+        for (cr in relevantComments)
+        {
+            val commentContent = text.substring(cr.startOffset, minOf(cr.endOffset, text.length)).lowercase()
+            if (commentContent.contains("ignore:sql-injection") ||
+                commentContent.contains("ignore:sql_injection") ||
+                commentContent.contains("ignore-sql-injection") ||
+                commentContent.contains("ignore_sql_injection") ||
+                commentContent.contains("@ignore:sql_injection") ||
+                commentContent.contains("@ignore:sql-injection"))
+            {
+                return true
+            }
+        }
+        return false
+    }
+
     private fun findQueryBlocks(
         text: String,
         commentRanges: List<TextRange>,
@@ -713,7 +764,7 @@ class CFMLAnnotator : Annotator
     {
         val blocks = mutableListOf<QueryBlock>()
         val matcher = TAG_PATTERN.matcher(text)
-        val queryStack = ArrayDeque<Int>()
+        val queryStack = ArrayDeque<Pair<TextRange, Int>>() // Pair(queryOpenTagRange, bodyStart)
 
         while (matcher.find())
         {
@@ -733,10 +784,10 @@ class CFMLAnnotator : Annotator
             {
                 if (queryStack.isNotEmpty())
                 {
-                    val bodyStart = queryStack.removeLast()
+                    val (tagRange, bodyStart) = queryStack.removeLast()
                     if (start > bodyStart)
                     {
-                        blocks.add(QueryBlock(TextRange(bodyStart, start)))
+                        blocks.add(QueryBlock(tagRange, TextRange(bodyStart, start)))
                     }
                 }
             }
@@ -744,17 +795,17 @@ class CFMLAnnotator : Annotator
             {
                 if (closingSlash != "/>")
                 {
-                    queryStack.addLast(end)
+                    queryStack.addLast(Pair(TextRange(start, end), end))
                 }
             }
         }
 
         while (queryStack.isNotEmpty())
         {
-            val bodyStart = queryStack.removeLast()
+            val (tagRange, bodyStart) = queryStack.removeLast()
             if (text.length > bodyStart)
             {
-                blocks.add(QueryBlock(TextRange(bodyStart, text.length)))
+                blocks.add(QueryBlock(tagRange, TextRange(bodyStart, text.length)))
             }
         }
 
@@ -906,4 +957,114 @@ class CFMLAnnotator : Annotator
             idx++
         }
     }
+}
+
+class ConvertToCfqueryparamQuickFix(private val targetRange: TextRange) : IntentionAction
+{
+    override fun getText(): @IntentionName String = "Convert to <cfqueryparam>"
+
+    override fun getFamilyName(): @IntentionFamilyName String = "Convert to <cfqueryparam>"
+
+    override fun isAvailable(project: Project, editor: Editor?, file: PsiFile?): Boolean = true
+
+    override fun invoke(project: Project, editor: Editor?, file: PsiFile?)
+    {
+        val document = editor?.document ?: file?.viewProvider?.document ?: return
+        val text = document.text
+        if (targetRange.startOffset < 0 || targetRange.endOffset > text.length || targetRange.startOffset >= targetRange.endOffset)
+        {
+            return
+        }
+
+        var start = targetRange.startOffset
+        var end = targetRange.endOffset
+        val rawSnippet = text.substring(start, end).trim()
+
+        // Check if surrounded by quotes (e.g. '#var#' or "#var#")
+        if (start > 0 && end < text.length)
+        {
+            val prevChar = text[start - 1]
+            val nextChar = text[end]
+            if ((prevChar == '\'' && nextChar == '\'') || (prevChar == '"' && nextChar == '"'))
+            {
+                start -= 1
+                end += 1
+            }
+        }
+
+        val snippet = text.substring(start, end).trim()
+        val replacement = if (snippet.startsWith("<cfoutput", ignoreCase = true) || snippet.startsWith("</cfoutput", ignoreCase = true))
+        {
+            // If it's a <cfoutput> tag, extract inner expression or replace with cfqueryparam
+            val innerHashMatch = Regex("""#([^#]+)#""").find(snippet)
+            if (innerHashMatch != null)
+            {
+                """<cfqueryparam value="#${innerHashMatch.groupValues[1]}#">"""
+            }
+            else
+            {
+                """<cfqueryparam value="">"""
+            }
+        }
+        else
+        {
+            var expr = snippet
+            if ((expr.startsWith("'") && expr.endsWith("'")) || (expr.startsWith("\"") && expr.endsWith("\"")))
+            {
+                expr = expr.substring(1, expr.length - 1).trim()
+            }
+            if (!expr.startsWith("#"))
+            {
+                expr = "#$expr"
+            }
+            if (!expr.endsWith("#"))
+            {
+                expr = "$expr#"
+            }
+            """<cfqueryparam value="$expr">"""
+        }
+
+        document.replaceString(start, end, replacement)
+    }
+
+    override fun startInWriteAction(): Boolean = true
+}
+
+class IgnoreSqlInjectionQuickFix(private val queryStartOffset: Int) : IntentionAction
+{
+    override fun getText(): @IntentionName String = "Ignore SQL injection warning"
+
+    override fun getFamilyName(): @IntentionFamilyName String = "Ignore SQL injection warning"
+
+    override fun isAvailable(project: Project, editor: Editor?, file: PsiFile?): Boolean = true
+
+    override fun invoke(project: Project, editor: Editor?, file: PsiFile?)
+    {
+        val document = editor?.document ?: file?.viewProvider?.document ?: return
+        val text = document.text
+        val insertOffset = if (queryStartOffset in 0..text.length)
+        {
+            // Find line start of queryStartOffset
+            val lineStart = text.lastIndexOf('\n', queryStartOffset - 1).let { if (it == -1) 0 else it + 1 }
+            lineStart
+        }
+        else
+        {
+            0
+        }
+
+        // Determine indent
+        var i = insertOffset
+        val indentBuilder = StringBuilder()
+        while (i < text.length && (text[i] == ' ' || text[i] == '\t'))
+        {
+            indentBuilder.append(text[i])
+            i++
+        }
+        val indent = indentBuilder.toString()
+        val suppressionComment = "$indent<!--- ignore:sql-injection --->\n"
+        document.insertString(insertOffset, suppressionComment)
+    }
+
+    override fun startInWriteAction(): Boolean = true
 }
