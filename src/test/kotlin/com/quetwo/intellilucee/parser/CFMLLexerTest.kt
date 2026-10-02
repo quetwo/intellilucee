@@ -313,4 +313,20 @@ class CFMLLexerTest {
         assertEquals(CFMLTokenTypes.TAG_NAME, tokens[1].second)
         assertEquals("cfcomponent", tokens[1].first)
     }
+
+    @Test
+    fun testSqlCommentWithApostropheInCfquery() {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                -- It's a comment with an apostrophe
+                SELECT * FROM users WHERE status = 'active'
+            </cfquery>
+        """.trimIndent()
+        val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }
+        val commentToken = tokens.find { it.second == CFMLTokenTypes.LINE_COMMENT }
+        assertNotNull("Expected LINE_COMMENT token for SQL comment", commentToken)
+        assertEquals("-- It's a comment with an apostrophe", commentToken!!.first)
+        val selectToken = tokens.find { it.first.equals("SELECT", ignoreCase = true) }
+        assertNotNull("SELECT should be tokenized outside any string literal", selectToken)
+    }
 }

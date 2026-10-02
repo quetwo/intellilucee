@@ -19,6 +19,7 @@ public class CFMLWordsScanner implements WordsScanner
 
         WordOccurrence occurrence = new WordOccurrence(fileText, 0, 0, null);
         int i = 0;
+        boolean inCfqueryBody = false;
 
         while (i < len)
         {
@@ -210,6 +211,51 @@ public class CFMLWordsScanner implements WordsScanner
                 continue;
             }
 
+            // 5.1 SQL line comment inside <cfquery> body: -- ...
+            if (inCfqueryBody && c == '-' && i + 1 < len && fileText.charAt(i + 1) == '-')
+            {
+                i += 2;
+                while (i < len)
+                {
+                    char ch = fileText.charAt(i);
+                    if (ch == '\n' || ch == '\r')
+                    {
+                        break;
+                    }
+
+                    if (Character.isJavaIdentifierStart(ch) || ch == '$')
+                    {
+                        int wordStart = i;
+                        i++;
+                        while (i < len)
+                        {
+                            char wch = fileText.charAt(i);
+                            if (wch == '\n' || wch == '\r')
+                            {
+                                break;
+                            }
+                            if (Character.isJavaIdentifierPart(wch) || wch == '$')
+                            {
+                                i++;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                        occurrence.init(fileText, wordStart, i, WordOccurrence.Kind.COMMENTS);
+                        if (!processor.process(occurrence))
+                        {
+                            return;
+                        }
+                        continue;
+                    }
+
+                    i++;
+                }
+                continue;
+            }
+
             // 6. Strings: "..." or '...'
             if (c == '"' || c == '\'')
             {
@@ -288,6 +334,14 @@ public class CFMLWordsScanner implements WordsScanner
             }
 
             // 8. Delimiters, operators, punctuation, numbers, and tags
+            if (c == '<' && i + 8 < len && fileText.subSequence(i, i + 9).toString().equalsIgnoreCase("</cfquery"))
+            {
+                inCfqueryBody = false;
+            }
+            else if (c == '<' && i + 7 < len && fileText.subSequence(i, i + 8).toString().equalsIgnoreCase("<cfquery"))
+            {
+                inCfqueryBody = true;
+            }
             i++;
         }
     }

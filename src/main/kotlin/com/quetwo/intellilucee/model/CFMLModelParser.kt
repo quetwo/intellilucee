@@ -128,6 +128,9 @@ object CFMLModelParser
         val ranges = mutableListOf<TextRange>()
         var i = 0
         val len = text.length
+        var inCfqueryBody = false
+        var tagDepth = 0
+
         while (i < len) {
             // CFML tag comments: <!--- ... --->
             if (text.startsWith("<!---", i))
@@ -209,6 +212,48 @@ object CFMLModelParser
                 }
                 continue
             }
+            // SQL line comment inside <cfquery> body: -- ...
+            if (inCfqueryBody && i + 1 < len && text[i] == '-' && text[i + 1] == '-')
+            {
+                val start = i
+                var end = text.indexOf('\n', i + 2)
+                if (end < 0)
+                {
+                    end = len
+                }
+                val closeIdx = text.indexOf("</cfquery", i + 2, ignoreCase = true)
+                if (closeIdx in (start + 1)..<end)
+                {
+                    end = closeIdx
+                }
+                ranges.add(TextRange(start, end))
+                i = end
+                continue
+            }
+
+            // Tag tracking for <cfquery> body
+            if (text.startsWith("</cfquery", i, ignoreCase = true))
+            {
+                inCfqueryBody = false
+                val endTag = text.indexOf('>', i)
+                if (endTag >= 0)
+                {
+                    i = endTag + 1
+                    continue
+                }
+            }
+            else if (text.startsWith("<cfquery", i, ignoreCase = true))
+            {
+                val endTag = text.indexOf('>', i)
+                if (endTag >= 0)
+                {
+                    val isSelfClosing = text.substring(i, endTag + 1).trimEnd().endsWith("/>")
+                    inCfqueryBody = !isSelfClosing
+                    i = endTag + 1
+                    continue
+                }
+            }
+
             i++
         }
         return ranges

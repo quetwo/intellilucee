@@ -1,10 +1,15 @@
 package com.quetwo.intellilucee.editor
 
+import com.intellij.lang.Language
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileTypes.SyntaxHighlighter
+import com.intellij.openapi.fileTypes.SyntaxHighlighterFactory
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.TokenType
 import com.quetwo.intellilucee.model.CFMLModelParser
@@ -35,7 +40,7 @@ class CFMLAnnotator : Annotator
          * Tags that evaluate/process hash expressions (#...#) within their body content.
          */
         private val VARIABLE_PROCESSING_BODY_TAGS = setOf(
-            "cfoutput", "cfquery", "cfmail", "cfsavecontent", "cfxml", "cfdocument",
+            "cfoutput", "cfmail", "cfsavecontent", "cfxml", "cfdocument",
             "cfdocumentsection", "cfdocumentitem", "cfpdf", "cfreport", "cfchart",
             "cfchartseries", "cfchartdata", "cftable", "cfgrid", "cftree", "cfpop",
             "cfldap", "cfhttp", "cfzip", "cffile", "cfdirectory", "cfregistry", "cflogin",
@@ -49,6 +54,19 @@ class CFMLAnnotator : Annotator
         private val ATTRIBUTE_PATTERN = Pattern.compile(
             """\b([a-zA-Z0-9_:\-]+)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)"""
         )
+
+        private val SQL_KEYWORDS = setOf(
+            "SELECT", "FROM", "WHERE", "INSERT", "INTO", "UPDATE", "SET", "DELETE",
+            "JOIN", "INNER", "LEFT", "RIGHT", "FULL", "OUTER", "CROSS", "ON",
+            "GROUP", "BY", "HAVING", "ORDER", "ASC", "DESC", "LIMIT", "OFFSET",
+            "UNION", "ALL", "DISTINCT", "AS", "AND", "OR", "NOT", "IN", "IS",
+            "NULL", "LIKE", "BETWEEN", "EXISTS", "CASE", "WHEN", "THEN", "ELSE",
+            "END", "CREATE", "TABLE", "ALTER", "DROP", "INDEX", "VIEW", "DATABASE",
+            "SCHEMA", "VALUES", "EXEC", "EXECUTE", "DECLARE", "BEGIN", "COMMIT",
+            "ROLLBACK", "TRANSACTION", "TRUNCATE", "GRANT", "REVOKE", "WITH", "TOP",
+            "FETCH", "FIRST", "NEXT", "ROWS", "ONLY", "COUNT", "SUM", "AVG", "MIN", "MAX",
+            "COALESCE", "CAST", "CONVERT"
+        )
     }
 
     private data class TagInfo(
@@ -56,6 +74,10 @@ class CFMLAnnotator : Annotator
         val rawName: String,
         val range: TextRange,
         val isCustomTag: Boolean = false
+    )
+
+    private data class QueryBlock(
+        val bodyRange: TextRange
     )
 
     override fun annotate(element: PsiElement, holder: AnnotationHolder)
@@ -123,6 +145,9 @@ class CFMLAnnotator : Annotator
 
         // 3. Tag Matching and Tag Structural Error Validation
         validateTags(text, commentRanges, stringRanges, holder)
+
+        // 4. Embedded SQL Highlighting & SQL Injection Error Validation for <cfquery>
+        validateAndHighlightCfquery(file, text, commentRanges, stringRanges, holder)
     }
 
     private fun validateHashExpressions(
@@ -473,6 +498,412 @@ class CFMLAnnotator : Annotator
                     .range(unclosed.range)
                     .create()
             }
+        }
+    }
+
+    private fun validateAndHighlightCfquery(
+        file: CFMLPsiFile,
+        text: String,
+        commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>,
+        holder: AnnotationHolder
+    )
+    {
+        val queryBlocks = findQueryBlocks(text, commentRanges, stringRanges)
+
+        for (block in queryBlocks)
+        {
+            val bodyRange = block.bodyRange
+            val bodyStart = bodyRange.startOffset
+            val bodyEnd = bodyRange.endOffset
+            if (bodyEnd <= bodyStart)
+            {
+                continue
+            }
+
+            val nestedTagMatcher = TAG_PATTERN.matcher(text)
+            nestedTagMatcher.region(bodyStart, bodyEnd)
+
+            val tagMarkupRanges = mutableListOf<TextRange>()
+            val paramTagRanges = mutableListOf<TextRange>()
+            val outputTagRanges = mutableListOf<TextRange>()
+
+            while (nestedTagMatcher.find())
+            {
+                val tStart = nestedTagMatcher.start()
+                val tEnd = nestedTagMatcher.end()
+                if (CFMLModelParser.isInsideRanges(tStart, commentRanges))
+                {
+                    continue
+                }
+
+                val tagRange = TextRange(tStart, tEnd)
+                tagMarkupRanges.add(tagRange)
+
+                val closing = nestedTagMatcher.group(1)?.lowercase()
+                val opening = nestedTagMatcher.group(2)?.lowercase()
+
+                if (closing == "cfoutput" || opening == "cfoutput")
+                {
+                    outputTagRanges.add(tagRange)
+                    holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
+                        .range(tagRange)
+                        .create()
+                }
+                else if (opening == "cfqueryparam")
+                {
+                    paramTagRanges.add(tagRange)
+                }
+            }
+
+            // Check for variable interpolation hashes (#...#) in the query body
+            var i = bodyStart
+            while (i < bodyEnd)
+            {
+                val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
+                if (commentEnd > i)
+                {
+                    i = commentEnd
+                    continue
+                }
+
+                val paramRange = paramTagRanges.firstOrNull { it.startOffset <= i && i < it.endOffset }
+                if (paramRange != null)
+                {
+                    i = maxOf(i + 1, paramRange.endOffset)
+                    continue
+                }
+
+                val otherTagRange = tagMarkupRanges.firstOrNull { it.startOffset <= i && i < it.endOffset && !outputTagRanges.contains(it) }
+                if (otherTagRange != null)
+                {
+                    i = maxOf(i + 1, otherTagRange.endOffset)
+                    continue
+                }
+
+                val c = text[i]
+                if (c == '#')
+                {
+                    if (i + 1 < bodyEnd && text[i + 1] == '#')
+                    {
+                        i += 2
+                        continue
+                    }
+
+                    var hashEnd = -1
+                    var j = i + 1
+                    while (j < bodyEnd)
+                    {
+                        val cEnd = CFMLModelParser.getCommentEndIfInside(j, commentRanges)
+                        if (cEnd > j)
+                        {
+                            j = cEnd
+                            continue
+                        }
+                        if (text[j] == '#')
+                        {
+                            if (j + 1 < bodyEnd && text[j + 1] == '#')
+                            {
+                                j += 2
+                                continue
+                            }
+                            hashEnd = j
+                            break
+                        }
+                        j++
+                    }
+
+                    if (hashEnd != -1)
+                    {
+                        val hashExprRange = TextRange(i, hashEnd + 1)
+                        holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
+                            .range(hashExprRange)
+                            .create()
+                        i = hashEnd + 1
+                    }
+                    else
+                    {
+                        val hashExprRange = TextRange(i, bodyEnd)
+                        holder.newAnnotation(HighlightSeverity.ERROR, "SQL Injection Possible")
+                            .range(hashExprRange)
+                            .create()
+                        break
+                    }
+                }
+                else
+                {
+                    i++
+                }
+            }
+
+            // Highlight SQL segments using embedded SQL lexer
+            val nonSqlRanges = mutableListOf<TextRange>()
+            for (cr in commentRanges)
+            {
+                val cText = text.substring(cr.startOffset, minOf(cr.endOffset, text.length))
+                if (cText.startsWith("<!--"))
+                {
+                    val intersection = bodyRange.intersection(cr)
+                    if (intersection != null && !intersection.isEmpty)
+                    {
+                        nonSqlRanges.add(intersection)
+                    }
+                }
+            }
+            for (tr in tagMarkupRanges)
+            {
+                val intersection = bodyRange.intersection(tr)
+                if (intersection != null && !intersection.isEmpty)
+                {
+                    nonSqlRanges.add(intersection)
+                }
+            }
+
+            val sortedNonSql = nonSqlRanges.sortedBy { it.startOffset }
+            val mergedNonSql = mutableListOf<TextRange>()
+            for (r in sortedNonSql)
+            {
+                if (mergedNonSql.isEmpty())
+                {
+                    mergedNonSql.add(r)
+                }
+                else
+                {
+                    val last = mergedNonSql.last()
+                    if (r.startOffset <= last.endOffset)
+                    {
+                        mergedNonSql[mergedNonSql.size - 1] = TextRange(last.startOffset, maxOf(last.endOffset, r.endOffset))
+                    }
+                    else
+                    {
+                        mergedNonSql.add(r)
+                    }
+                }
+            }
+
+            var curr = bodyStart
+            for (nonSql in mergedNonSql)
+            {
+                if (nonSql.startOffset > curr)
+                {
+                    val seg = text.substring(curr, nonSql.startOffset)
+                    if (seg.isNotBlank())
+                    {
+                        highlightSqlSegment(file, seg, curr, holder)
+                    }
+                }
+                curr = maxOf(curr, nonSql.endOffset)
+            }
+            if (curr < bodyEnd)
+            {
+                val seg = text.substring(curr, bodyEnd)
+                if (seg.isNotBlank())
+                {
+                    highlightSqlSegment(file, seg, curr, holder)
+                }
+            }
+        }
+    }
+
+    private fun findQueryBlocks(
+        text: String,
+        commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>
+    ): List<QueryBlock>
+    {
+        val blocks = mutableListOf<QueryBlock>()
+        val matcher = TAG_PATTERN.matcher(text)
+        val queryStack = ArrayDeque<Int>()
+
+        while (matcher.find())
+        {
+            val start = matcher.start()
+            val end = matcher.end()
+
+            if (CFMLModelParser.isInsideRanges(start, commentRanges) || CFMLModelParser.isInsideRanges(start, stringRanges))
+            {
+                continue
+            }
+
+            val closingTagName = matcher.group(1)?.lowercase()
+            val openingTagName = matcher.group(2)?.lowercase()
+            val closingSlash = matcher.group(4) ?: ""
+
+            if (closingTagName == "cfquery")
+            {
+                if (queryStack.isNotEmpty())
+                {
+                    val bodyStart = queryStack.removeLast()
+                    if (start > bodyStart)
+                    {
+                        blocks.add(QueryBlock(TextRange(bodyStart, start)))
+                    }
+                }
+            }
+            else if (openingTagName == "cfquery")
+            {
+                if (closingSlash != "/>")
+                {
+                    queryStack.addLast(end)
+                }
+            }
+        }
+
+        while (queryStack.isNotEmpty())
+        {
+            val bodyStart = queryStack.removeLast()
+            if (text.length > bodyStart)
+            {
+                blocks.add(QueryBlock(TextRange(bodyStart, text.length)))
+            }
+        }
+
+        return blocks
+    }
+
+    private fun highlightSqlSegment(
+        file: CFMLPsiFile,
+        segText: String,
+        segStart: Int,
+        holder: AnnotationHolder
+    )
+    {
+        val project = file.project
+        val virtualFile = file.virtualFile ?: file.originalFile.virtualFile
+        val sqlHighlighter = getSqlHighlighter(project, virtualFile)
+
+        if (sqlHighlighter != null)
+        {
+            try
+            {
+                val lexer = sqlHighlighter.highlightingLexer
+                lexer.start(segText, 0, segText.length)
+                while (lexer.tokenType != null)
+                {
+                    val tokenType = lexer.tokenType
+                    val tokenStart = segStart + lexer.tokenStart
+                    val tokenEnd = segStart + lexer.tokenEnd
+                    val attributes = sqlHighlighter.getTokenHighlights(tokenType)
+                    for (attr in attributes)
+                    {
+                        holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                            .range(TextRange(tokenStart, tokenEnd))
+                            .textAttributes(attr)
+                            .create()
+                    }
+                    lexer.advance()
+                }
+                return
+            }
+            catch (_: Exception)
+            {
+            }
+        }
+
+        highlightSqlFallback(segText, segStart, holder)
+    }
+
+    private fun getSqlHighlighter(project: Project, virtualFile: VirtualFile?): SyntaxHighlighter?
+    {
+        val sqlLanguage = Language.findLanguageByID("GenericSQL")
+            ?: Language.findLanguageByID("SQL")
+            ?: Language.findLanguageByID("MySQL")
+            ?: Language.findLanguageByID("PostgreSQL")
+            ?: Language.findLanguageByID("Oracle")
+            ?: Language.findLanguageByID("SQLite")
+        return sqlLanguage?.let { SyntaxHighlighterFactory.getSyntaxHighlighter(it, project, virtualFile) }
+    }
+
+    private fun highlightSqlFallback(segText: String, segStart: Int, holder: AnnotationHolder)
+    {
+        var idx = 0
+        val len = segText.length
+        while (idx < len)
+        {
+            val ch = segText[idx]
+            if (ch.isWhitespace())
+            {
+                idx++
+                continue
+            }
+            if (ch == '-' && idx + 1 < len && segText[idx + 1] == '-')
+            {
+                val lineEnd = segText.indexOf('\n', idx).let { if (it == -1) len else it }
+                holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                    .range(TextRange(segStart + idx, segStart + lineEnd))
+                    .textAttributes(CFMLSyntaxHighlighter.LINE_COMMENT)
+                    .create()
+                idx = lineEnd
+                continue
+            }
+            if (ch == '/' && idx + 1 < len && segText[idx + 1] == '*')
+            {
+                val commentEnd = segText.indexOf("*/", idx + 2).let { if (it == -1) len else it + 2 }
+                holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                    .range(TextRange(segStart + idx, segStart + commentEnd))
+                    .textAttributes(CFMLSyntaxHighlighter.BLOCK_COMMENT)
+                    .create()
+                idx = commentEnd
+                continue
+            }
+            if (ch == '\'' || ch == '"')
+            {
+                val quote = ch
+                var sEnd = idx + 1
+                while (sEnd < len)
+                {
+                    if (segText[sEnd] == quote)
+                    {
+                        if (sEnd + 1 < len && segText[sEnd + 1] == quote)
+                        {
+                            sEnd += 2
+                            continue
+                        }
+                        sEnd++
+                        break
+                    }
+                    sEnd++
+                }
+                holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                    .range(TextRange(segStart + idx, segStart + sEnd))
+                    .textAttributes(CFMLSyntaxHighlighter.STRING)
+                    .create()
+                idx = sEnd
+                continue
+            }
+            if (ch.isDigit())
+            {
+                var numEnd = idx + 1
+                while (numEnd < len && (segText[numEnd].isDigit() || segText[numEnd] == '.'))
+                {
+                    numEnd++
+                }
+                holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                    .range(TextRange(segStart + idx, segStart + numEnd))
+                    .textAttributes(CFMLSyntaxHighlighter.NUMBER)
+                    .create()
+                idx = numEnd
+                continue
+            }
+            if (ch.isLetter() || ch == '_')
+            {
+                var idEnd = idx + 1
+                while (idEnd < len && (segText[idEnd].isLetterOrDigit() || segText[idEnd] == '_'))
+                {
+                    idEnd++
+                }
+                val word = segText.substring(idx, idEnd)
+                if (SQL_KEYWORDS.contains(word.uppercase()))
+                {
+                    holder.newSilentAnnotation(HighlightSeverity.INFORMATION)
+                        .range(TextRange(segStart + idx, segStart + idEnd))
+                        .textAttributes(CFMLSyntaxHighlighter.KEYWORD)
+                        .create()
+                }
+                idx = idEnd
+                continue
+            }
+            idx++
         }
     }
 }

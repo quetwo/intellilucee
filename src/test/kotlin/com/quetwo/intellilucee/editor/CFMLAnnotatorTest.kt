@@ -378,7 +378,7 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
             <cfquery name="getUser" datasource="myDSN">
                 SELECT * FROM users
                 WHERE id = <cfqueryparam value="123" cfsqltype="cf_sql_integer">
-                  AND name = <cfqueryparam value="John" cfsqltype="cf_sql_varchar" />
+                  AND name = <cfqueryparam value="#John#" cfsqltype="cf_sql_varchar" />
             </cfquery>
         """.trimIndent()
 
@@ -386,5 +386,153 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
         val highlights = myFixture.doHighlighting()
         val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
         assertTrue("Expected no errors for <cfqueryparam> (unclosed or self-closing) in <cfquery>, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testSqlInjectionFromHashInCfqueryReportsError()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT * FROM users
+                WHERE id = #userId#
+                  AND name = '#userName#'
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("sqli_hash.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected SQL Injection errors for #...# in cfquery, got: $errors", errors.isNotEmpty())
+        val injectionErrors = errors.filter { it.description != null && it.description.contains("SQL Injection Possible") }
+        assertEquals(2, injectionErrors.size)
+    }
+
+    @Test
+    fun testSqlInjectionFromCfoutputInCfqueryReportsError()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                <cfoutput>
+                    SELECT * FROM users WHERE id = 1
+                </cfoutput>
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("sqli_cfoutput.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected SQL Injection errors for <cfoutput> inside cfquery, got: $errors", errors.isNotEmpty())
+        val injectionErrors = errors.filter { it.description != null && it.description.contains("SQL Injection Possible") }
+        assertTrue("Should report SQL Injection Possible for cfoutput tags", injectionErrors.size >= 2)
+    }
+
+    @Test
+    fun testCfqueryWithCfifAndCfqueryparamProducesNoErrors()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT id, name FROM users
+                WHERE 1=1
+                <cfif structKeyExists(arguments, "status")>
+                    AND status = <cfqueryparam value="#arguments.status#" cfsqltype="cf_sql_varchar">
+                </cfif>
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("cfif_queryparam.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for <cfif> with <cfqueryparam> in <cfquery>, got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testCfqueryWithCfifAndHashInSqlReportsError()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                SELECT id, name FROM users
+                WHERE 1=1
+                <cfif structKeyExists(arguments, "status")>
+                    AND status = '#arguments.status#'
+                </cfif>
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("cfif_hash_sqli.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected SQL Injection error for #arguments.status# inside cfif in cfquery, got: $errors",
+            errors.any { it.description != null && it.description.contains("SQL Injection Possible") })
+    }
+
+    @Test
+    fun testCfqueryWithEscapedHashesProducesNoErrors()
+    {
+        val code = """
+            <cfquery name="tempQuery" datasource="myDSN">
+                SELECT * FROM ##temp_table
+                WHERE tag = 'item ##1'
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("escaped_hash.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for escaped hashes in <cfquery>, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testCfquerySqlSyntaxHighlightingApplied()
+    {
+        val code = """
+            <cfquery name="q" datasource="dsn">
+                SELECT id, name FROM users WHERE active = 1
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("sql_highlight.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val infoHighlights = highlights.filter { it.severity == HighlightSeverity.INFORMATION }
+        // Verify information highlights exist for SQL keywords/tokens inside cfquery
+        assertTrue("Expected syntax highlighting annotations in cfquery", infoHighlights.isNotEmpty())
+    }
+
+    @Test
+    fun testCfqueryWithSqlCommentContainingApostropheProducesNoErrors()
+    {
+        val code = """
+            <cfquery name="getUser" datasource="myDSN">
+                -- It's a comment with an apostrophe
+                SELECT id, name FROM users
+                WHERE 1=1
+                <cfif structKeyExists(arguments, "status")>
+                    AND status = 'active'
+                </cfif>
+                /* Don't break on block comments either */
+                AND type = 'admin'
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("sql_comment_apostrophe.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for SQL comments containing apostrophes in <cfquery>, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testCfqueryWithIfWeveBeenNotifyingComment()
+    {
+        val code = """
+            <cfquery name="qTest" datasource="myDSN">
+                SELECT * FROM notifications WHERE count < 10
+                -- If we've been notifying
+                SELECT id FROM test
+            </cfquery>
+        """.trimIndent()
+
+        myFixture.configureByText("sql_notifying.cfm", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for <cfquery> with '-- If we\\'ve been notifying', but got: $errors", errors.isEmpty())
     }
 }

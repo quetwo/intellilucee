@@ -16,6 +16,9 @@ public class CFMLLexer extends LexerBase
     public static final int STATE_DEFAULT = 0;
     public static final int STATE_AFTER_TAG_START = 1;
     public static final int STATE_INSIDE_TAG = 2;
+    private static final int STATE_QUERY_FLAG = 4;
+    private static final int STATE_CLOSE_TAG_FLAG = 8;
+    private static final int STATE_CFQUERY_TAG_FLAG = 16;
 
     private static final Map<String, IElementType> KEYWORDS = new HashMap<>();
     private static final Map<String, IElementType> TYPES = new HashMap<>();
@@ -137,6 +140,9 @@ public class CFMLLexer extends LexerBase
     private int tokenStart;
     private int tokenEnd;
     private int state = STATE_DEFAULT;
+    private boolean insideCfqueryBody = false;
+    private boolean isCloseTag = false;
+    private boolean isCfqueryTag = false;
     private IElementType tokenType;
 
     @Override
@@ -146,7 +152,10 @@ public class CFMLLexer extends LexerBase
         this.bufferEnd = endOffset;
         this.tokenStart = startOffset;
         this.tokenEnd = startOffset;
-        this.state = initialState;
+        this.state = initialState & 3;
+        this.insideCfqueryBody = (initialState & STATE_QUERY_FLAG) != 0;
+        this.isCloseTag = (initialState & STATE_CLOSE_TAG_FLAG) != 0;
+        this.isCfqueryTag = (initialState & STATE_CFQUERY_TAG_FLAG) != 0;
         this.tokenType = null;
         advance();
     }
@@ -154,7 +163,11 @@ public class CFMLLexer extends LexerBase
     @Override
     public int getState()
     {
-        return state;
+        int flags = state & 3;
+        if (insideCfqueryBody) flags |= STATE_QUERY_FLAG;
+        if (isCloseTag) flags |= STATE_CLOSE_TAG_FLAG;
+        if (isCfqueryTag) flags |= STATE_CFQUERY_TAG_FLAG;
+        return flags;
     }
 
     @Override
@@ -295,6 +308,19 @@ public class CFMLLexer extends LexerBase
             return;
         }
 
+        // 5.1 SQL line comment inside <cfquery> body: -- ...
+        if (insideCfqueryBody && state == STATE_DEFAULT && c == '-' && i + 1 < bufferEnd && buffer.charAt(i + 1) == '-')
+        {
+            i += 2;
+            while (i < bufferEnd && buffer.charAt(i) != '\n' && buffer.charAt(i) != '\r')
+            {
+                i++;
+            }
+            tokenEnd = i;
+            tokenType = CFMLTokenTypes.LINE_COMMENT;
+            return;
+        }
+
         // 6. Strings: "..." or '...'
         if (c == '"' || c == '\'')
         {
@@ -350,6 +376,8 @@ public class CFMLLexer extends LexerBase
                     tokenEnd = i + 2;
                     tokenType = CFMLTokenTypes.TAG_CLOSE_START;
                     state = STATE_AFTER_TAG_START;
+                    isCloseTag = true;
+                    isCfqueryTag = false;
                     return;
                 }
             }
@@ -365,6 +393,8 @@ public class CFMLLexer extends LexerBase
                     tokenEnd = i + 1;
                     tokenType = CFMLTokenTypes.TAG_OPEN_START;
                     state = STATE_AFTER_TAG_START;
+                    isCloseTag = false;
+                    isCfqueryTag = false;
                     return;
                 }
             }
@@ -378,6 +408,12 @@ public class CFMLLexer extends LexerBase
                 tokenEnd = i + 2;
                 tokenType = CFMLTokenTypes.TAG_EMPTY_END;
                 state = STATE_DEFAULT;
+                if (isCfqueryTag)
+                {
+                    insideCfqueryBody = false;
+                    isCfqueryTag = false;
+                }
+                isCloseTag = false;
                 return;
             }
             if (c == '>')
@@ -385,6 +421,12 @@ public class CFMLLexer extends LexerBase
                 tokenEnd = i + 1;
                 tokenType = CFMLTokenTypes.TAG_END;
                 state = STATE_DEFAULT;
+                if (isCfqueryTag)
+                {
+                    insideCfqueryBody = !isCloseTag;
+                    isCfqueryTag = false;
+                }
+                isCloseTag = false;
                 return;
             }
         }
@@ -464,6 +506,11 @@ public class CFMLLexer extends LexerBase
             {
                 tokenType = CFMLTokenTypes.TAG_NAME;
                 state = STATE_INSIDE_TAG;
+                String tagName = buffer.subSequence(tokenStart, tokenEnd).toString();
+                if (tagName.equalsIgnoreCase("cfquery"))
+                {
+                    isCfqueryTag = true;
+                }
                 return;
             }
 

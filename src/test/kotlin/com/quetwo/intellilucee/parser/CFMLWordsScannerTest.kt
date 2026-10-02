@@ -103,6 +103,23 @@ class CFMLWordsScannerTest {
     }
 
     @Test
+    fun testSqlCommentsWords() {
+        val code = """
+            <cfquery name="q">
+                -- It's a test comment
+                SELECT * FROM users
+            </cfquery>
+        """.trimIndent()
+
+        val words = scanWords(code)
+        val commentWords = words.filter { it.second == WordOccurrence.Kind.COMMENTS }.map { it.first }
+        assertTrue(commentWords.contains("It"))
+        assertTrue(commentWords.contains("s"))
+        assertTrue(commentWords.contains("test"))
+        assertTrue(commentWords.contains("comment"))
+    }
+
+    @Test
     fun testStringLiteralsWords() {
         val code = """
             var message = "Hello, ""World"" from CFML!";
