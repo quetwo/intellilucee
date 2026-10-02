@@ -83,7 +83,8 @@ class CFMLAnnotator : Annotator
 
     private data class QueryBlock(
         val queryTagRange: TextRange,
-        val bodyRange: TextRange
+        val bodyRange: TextRange,
+        val isScript: Boolean = false
     )
 
     override fun annotate(element: PsiElement, holder: AnnotationHolder)
@@ -787,7 +788,7 @@ class CFMLAnnotator : Annotator
                     val (tagRange, bodyStart) = queryStack.removeLast()
                     if (start > bodyStart)
                     {
-                        blocks.add(QueryBlock(tagRange, TextRange(bodyStart, start)))
+                        blocks.add(QueryBlock(tagRange, TextRange(bodyStart, start), isScript = false))
                     }
                 }
             }
@@ -805,11 +806,215 @@ class CFMLAnnotator : Annotator
             val (tagRange, bodyStart) = queryStack.removeLast()
             if (text.length > bodyStart)
             {
-                blocks.add(QueryBlock(tagRange, TextRange(bodyStart, text.length)))
+                blocks.add(QueryBlock(tagRange, TextRange(bodyStart, text.length), isScript = false))
             }
         }
 
+        // Also extract queryExecute(...) SQL blocks
+        extractQueryExecuteBlocks(text, commentRanges, stringRanges, blocks)
+
         return blocks
+    }
+
+    private fun extractQueryExecuteBlocks(
+        text: String,
+        commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>,
+        blocks: MutableList<QueryBlock>
+    )
+    {
+        val callPattern = Pattern.compile("""\b(queryExecute)\s*\(""", Pattern.CASE_INSENSITIVE)
+        val matcher = callPattern.matcher(text)
+
+        while (matcher.find())
+        {
+            val callStart = matcher.start(1)
+            val callEnd = matcher.end(1)
+            val parenStart = matcher.end() - 1 // '(' index
+
+            if (CFMLModelParser.isInsideRanges(callStart, commentRanges) || CFMLModelParser.isInsideRanges(callStart, stringRanges))
+            {
+                continue
+            }
+
+            // Find matching closing parenthesis of queryExecute(...)
+            val argsCloseParen = findMatchingParen(text, parenStart, commentRanges) ?: continue
+
+            // Split arguments inside ( ... )
+            val rawArgs = splitArguments(text, parenStart + 1, argsCloseParen, commentRanges)
+            if (rawArgs.isEmpty())
+            {
+                continue
+            }
+
+            // Check if there's a named argument "sql" (e.g. sql = "...", sql: "...")
+            var sqlArgRange: TextRange? = null
+            for (arg in rawArgs)
+            {
+                val trimmedArg = text.substring(arg.startOffset, arg.endOffset).trimStart()
+                val namedMatcher = Pattern.compile("""^sql\s*[:=]\s*""", Pattern.CASE_INSENSITIVE).matcher(trimmedArg)
+                if (namedMatcher.find())
+                {
+                    val prefixLen = text.substring(arg.startOffset, arg.endOffset).indexOf(trimmedArg) + namedMatcher.end()
+                    val valueStart = arg.startOffset + prefixLen
+                    sqlArgRange = TextRange(valueStart, arg.endOffset)
+                    break
+                }
+            }
+
+            // If no named "sql" argument was found, the first argument is positional SQL
+            if (sqlArgRange == null)
+            {
+                sqlArgRange = rawArgs[0]
+            }
+
+            // Extract the string content inside quotes if the SQL argument is a string literal
+            val argText = text.substring(sqlArgRange.startOffset, sqlArgRange.endOffset).trim()
+            val startInOriginal = text.indexOf(argText, sqlArgRange.startOffset)
+            if (startInOriginal != -1 && argText.length >= 2)
+            {
+                val firstChar = argText.first()
+                val lastChar = argText.last()
+                if ((firstChar == '"' && lastChar == '"') || (firstChar == '\'' && lastChar == '\''))
+                {
+                    val bodyStart = startInOriginal + 1
+                    val bodyEnd = startInOriginal + argText.length - 1
+                    blocks.add(
+                        QueryBlock(
+                            queryTagRange = TextRange(callStart, callEnd),
+                            bodyRange = TextRange(bodyStart, bodyEnd),
+                            isScript = true
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun findMatchingParen(text: String, openParenIndex: Int, commentRanges: List<TextRange>): Int?
+    {
+        var depth = 0
+        var i = openParenIndex
+        val len = text.length
+
+        while (i < len)
+        {
+            val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
+            if (commentEnd > i)
+            {
+                i = commentEnd
+                continue
+            }
+
+            val c = text[i]
+            if (c == '"' || c == '\'')
+            {
+                val quote = c
+                i++
+                while (i < len)
+                {
+                    if (text[i] == quote)
+                    {
+                        if (i + 1 < len && text[i + 1] == quote)
+                        {
+                            i += 2
+                            continue
+                        }
+                        i++
+                        break
+                    }
+                    i++
+                }
+                continue
+            }
+
+            if (c == '(')
+            {
+                depth++
+            }
+            else if (c == ')')
+            {
+                depth--
+                if (depth == 0)
+                {
+                    return i
+                }
+            }
+            i++
+        }
+        return null
+    }
+
+    private fun splitArguments(text: String, startOffset: Int, endOffset: Int, commentRanges: List<TextRange>): List<TextRange>
+    {
+        val args = mutableListOf<TextRange>()
+        var i = startOffset
+        var argStart = startOffset
+        var parenDepth = 0
+        var bracketDepth = 0
+        var braceDepth = 0
+
+        while (i < endOffset)
+        {
+            val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
+            if (commentEnd > i)
+            {
+                i = commentEnd
+                continue
+            }
+
+            val c = text[i]
+            if (c == '"' || c == '\'')
+            {
+                val quote = c
+                i++
+                while (i < endOffset)
+                {
+                    if (text[i] == quote)
+                    {
+                        if (i + 1 < endOffset && text[i + 1] == quote)
+                        {
+                            i += 2
+                            continue
+                        }
+                        i++
+                        break
+                    }
+                    i++
+                }
+                continue
+            }
+
+            when (c)
+            {
+                '(' -> parenDepth++
+                ')' -> parenDepth--
+                '[' -> bracketDepth++
+                ']' -> bracketDepth--
+                '{' -> braceDepth++
+                '}' -> braceDepth--
+                ',' ->
+                {
+                    if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0)
+                    {
+                        args.add(TextRange(argStart, i))
+                        argStart = i + 1
+                    }
+                }
+            }
+            i++
+        }
+
+        if (argStart < endOffset)
+        {
+            val remaining = text.substring(argStart, endOffset)
+            if (remaining.isNotBlank())
+            {
+                args.add(TextRange(argStart, endOffset))
+            }
+        }
+
+        return args
     }
 
     private fun highlightSqlSegment(
@@ -1062,7 +1267,18 @@ class IgnoreSqlInjectionQuickFix(private val queryStartOffset: Int) : IntentionA
             i++
         }
         val indent = indentBuilder.toString()
-        val suppressionComment = "$indent<!--- ignore:sql-injection --->\n"
+
+        // Check if script context or pure script file vs tag context
+        val isScriptContext = !text.contains("<cf", ignoreCase = true) ||
+                text.substring(0, minOf(queryStartOffset, text.length)).contains("<cfscript", ignoreCase = true)
+        val suppressionComment = if (isScriptContext)
+        {
+            "$indent// ignore:sql-injection\n"
+        }
+        else
+        {
+            "$indent<!--- ignore:sql-injection --->\n"
+        }
         document.insertString(insertOffset, suppressionComment)
     }
 

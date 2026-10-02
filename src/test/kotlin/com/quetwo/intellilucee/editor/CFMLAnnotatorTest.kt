@@ -600,4 +600,145 @@ class CFMLAnnotatorTest : BasePlatformTestCase()
         val errors = newHighlights.filter { it.severity == HighlightSeverity.ERROR }
         assertTrue("Expected no SQL injection errors after applying ignore quick fix, but got: $errors", errors.isEmpty())
     }
+
+    @Test
+    fun testQueryExecuteSqlHighlightingAndNoErrorsForValidQuery()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    var result = queryExecute("SELECT id, name FROM users WHERE id = ?", [arguments.userId]);
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("valid_query_execute.cfc", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for valid queryExecute call, but got: $errors", errors.isEmpty())
+        val infoHighlights = highlights.filter { it.severity == HighlightSeverity.INFORMATION }
+        assertTrue("Expected SQL highlighting annotations inside queryExecute", infoHighlights.isNotEmpty())
+    }
+
+    @Test
+    fun testQueryExecutePositionalSqlInjectionReportsError()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    var result = queryExecute("SELECT id, name FROM users WHERE id = #arguments.userId#");
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("query_execute_sqli.cfc", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected SQL Injection error for #arguments.userId# in queryExecute, got: $errors",
+            errors.any { it.description != null && it.description.contains("SQL Injection Possible") })
+    }
+
+    @Test
+    fun testQueryExecuteNamedSqlParamInjectionReportsError()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    var result = queryExecute(params = {}, sql = "SELECT id, name FROM users WHERE id = #arguments.userId#");
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("query_execute_named_sqli.cfc", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected SQL Injection error for named sql param in queryExecute, got: $errors",
+            errors.any { it.description != null && it.description.contains("SQL Injection Possible") })
+    }
+
+    @Test
+    fun testQueryExecuteNamedColonSqlParamInjectionReportsError()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    var result = queryExecute(sql: 'SELECT id, name FROM users WHERE id = #arguments.userId#', params: {});
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("query_execute_named_colon_sqli.cfc", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected SQL Injection error for named sql: param in queryExecute, got: $errors",
+            errors.any { it.description != null && it.description.contains("SQL Injection Possible") })
+    }
+
+    @Test
+    fun testQueryExecuteWithSqlCommentAndApostropheProducesNoErrors()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    var result = queryExecute("
+                        -- If we've been notifying
+                        SELECT id, name FROM users WHERE active = 1
+                    ", {}, { datasource: "myDSN" });
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("query_execute_comment_apostrophe.cfc", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no errors for SQL comment with apostrophe in queryExecute, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testQueryExecuteSqlInjectionSuppressedWithComment()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    // ignore:sql-injection
+                    var result = queryExecute("SELECT id, name FROM users WHERE id = #arguments.userId#");
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("query_execute_ignored.cfc", code)
+        val highlights = myFixture.doHighlighting()
+        val errors = highlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no SQL injection errors when // ignore:sql-injection is used, but got: $errors", errors.isEmpty())
+    }
+
+    @Test
+    fun testQueryExecuteQuickFixIgnoreError()
+    {
+        val code = """
+            component {
+                function getUser(numeric userId) {
+                    var result = queryExecute("SELECT id, name FROM users WHERE id = <caret>#arguments.userId#");
+                    return result;
+                }
+            }
+        """.trimIndent()
+
+        myFixture.configureByText("query_execute_quickfix_ignore.cfc", code)
+        myFixture.doHighlighting()
+        val availableIntentions = myFixture.availableIntentions
+        val ignoreAction = availableIntentions.find { it.text == "Ignore SQL injection warning" }
+        assertNotNull("Should provide 'Ignore SQL injection warning' intention action", ignoreAction)
+        myFixture.launchAction(ignoreAction!!)
+
+        val newHighlights = myFixture.doHighlighting()
+        val errors = newHighlights.filter { it.severity == HighlightSeverity.ERROR }
+        assertTrue("Expected no SQL injection errors after applying ignore quick fix to queryExecute, but got: $errors", errors.isEmpty())
+    }
 }
