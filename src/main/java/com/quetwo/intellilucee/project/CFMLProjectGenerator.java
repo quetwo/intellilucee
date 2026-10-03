@@ -131,6 +131,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
     {
         String luceeDockerVersionNumber = switch (settings.luceeVersion) {
             case "6.2.x" -> "6.2";
+            case "7.0.x" -> "7.0";
             case "7.1.x" -> "7.1";
             case "8.0.x" -> "8.0";
             default -> "LATEST";
@@ -138,11 +139,11 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
 
         return "FROM lucee/lucee:" + luceeDockerVersionNumber + "\n\n" +
                 "RUN rm -R /var/www\n\n" +
-                "WORKDIR /var/www\n" +
+                "WORKDIR /var/www\n\n" +
                 "ENV LUCEE_LOGGING_FORCE_APPENDER=console\n" +
-                "ENV LUCEE_LOGGING_FORCE_LEVEL=warning\n" +
-                "COPY ./webroot/ /var/www\n" +
-                "RUN /usr/local/tomcat/bin/prewarm.sh\n" +
+                "ENV LUCEE_LOGGING_FORCE_LEVEL=warning\n\n" +
+                "COPY ./webroot/ /var/www\n\n" +
+                "RUN /usr/local/tomcat/bin/prewarm.sh\n\n" +
                 "EXPOSE 8888";
     }
 
@@ -263,8 +264,9 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         public final boolean includeDatabase;
         public final @NotNull String databaseType;
         public final boolean includeReverseProxy;
+        public final @NotNull String domainName;
 
-        private Settings(@NotNull String appName, @NotNull String luceeVersion, boolean dockerEnabled, boolean includeDatabase, @NotNull String databaseType, boolean includeReverseProxy)
+        private Settings(@NotNull String appName, @NotNull String luceeVersion, boolean dockerEnabled, boolean includeDatabase, @NotNull String databaseType, boolean includeReverseProxy, @NotNull String domainName)
         {
             this.appName = appName;
             this.luceeVersion = luceeVersion;
@@ -272,6 +274,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             this.includeDatabase = includeDatabase;
             this.databaseType = databaseType;
             this.includeReverseProxy = includeReverseProxy;
+            this.domainName = domainName;
         }
     }
 
@@ -279,11 +282,13 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
     {
         private final JPanel panel = new JPanel(new GridBagLayout());
         private final JTextField appNameField = new JTextField("my-cfml-app", 25);
-        private final JComboBox<String> luceeVersion = new JComboBox<>(new String[]{"6.2.x", "7.1.x", "8.0.x"});
+        private final JComboBox<String> luceeVersion = new JComboBox<>(new String[]{"6.2.x", "7.0.x", "7.1.x", "8.0.x"});
         private final JCheckBox dockerEnabled = new JCheckBox("Docker-enabled project", true);
         private final JCheckBox includeDatabase = new JCheckBox("Include database server", false);
         private final JComboBox<String> databaseType = new JComboBox<>(new String[]{"MySQL", "MariaDB", "Postgres", "MSSQL"});
         private final JCheckBox includeReverseProxy = new JCheckBox("Include reverse proxy", false);
+        private final JLabel domainNameLabel = new JLabel("Local domain name:");
+        private final JTextField domainNameField = new JTextField("my-cfml-app.local", 25);
 
         private Peer()
         {
@@ -327,9 +332,19 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             c.gridwidth = 2;
             panel.add(includeReverseProxy, c);
 
+            c.gridy++;
+            c.gridx = 0;
+            c.gridwidth = 1;
+            panel.add(domainNameLabel, c);
+
+            c.gridx = 1;
+            c.fill = GridBagConstraints.HORIZONTAL;
+            panel.add(domainNameField, c);
+
             Runnable updateState = this::updateDynamicState;
             dockerEnabled.addActionListener(e -> updateState.run());
             includeDatabase.addActionListener(e -> updateState.run());
+            includeReverseProxy.addActionListener(e -> updateState.run());
             updateDynamicState();
         }
 
@@ -341,12 +356,16 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
 
             boolean db = docker && includeDatabase.isSelected();
             databaseType.setEnabled(db);
+
+            boolean proxy = docker && includeReverseProxy.isSelected();
+            domainNameLabel.setEnabled(proxy);
+            domainNameField.setEnabled(proxy);
         }
 
         @Override
         public @NotNull JComponent getComponent(@NotNull TextFieldWithBrowseButton myLocationField, @NotNull Runnable checkValid)
         {
-            appNameField.getDocument().addDocumentListener(new DocumentListener()
+            DocumentListener listener = new DocumentListener()
             {
                 @Override
                 public void insertUpdate(DocumentEvent e)
@@ -365,7 +384,9 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 {
                     checkValid.run();
                 }
-            });
+            };
+            appNameField.getDocument().addDocumentListener(listener);
+            domainNameField.getDocument().addDocumentListener(listener);
             return panel;
         }
 
@@ -383,7 +404,8 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                     dockerEnabled.isSelected(),
                     dockerEnabled.isSelected() && includeDatabase.isSelected(),
                     String.valueOf(databaseType.getSelectedItem()),
-                    dockerEnabled.isSelected() && includeReverseProxy.isSelected()
+                    dockerEnabled.isSelected() && includeReverseProxy.isSelected(),
+                    domainNameField.getText().trim()
             );
         }
 
@@ -393,6 +415,10 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             if (appNameField.getText().trim().isEmpty())
             {
                 return new ValidationInfo("Application name is required", appNameField);
+            }
+            if (dockerEnabled.isSelected() && includeReverseProxy.isSelected() && domainNameField.getText().trim().isEmpty())
+            {
+                return new ValidationInfo("Local domain name is required", domainNameField);
             }
             return null;
         }
