@@ -78,6 +78,11 @@
                 language="CFML"
                 implementationClass="com.quetwo.intellilucee.parser.CFMLParserDefinition"/>
 
+        <!-- Structure View for CFML and HTML tags -->
+        <lang.psiStructureViewFactory
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.structure.CFMLStructureViewFactory"/>
+
         <!-- Support for the 'Surrounds with...' options in the menus -->
         <lang.surroundDescriptor
                 language="CFML"
