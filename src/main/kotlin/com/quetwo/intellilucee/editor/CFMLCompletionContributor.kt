@@ -104,7 +104,7 @@ class CFMLCompletionContributor : CompletionContributor()
                         val element = LookupElementBuilder.create(col)
                             .withIcon(AllIcons.Nodes.Variable)
                             .withTypeText("query column", true)
-                        result.addElement(PrioritizedLookupElement.withPriority(element, 1000.0))
+                        result.addElement(PrioritizedLookupElement.withPriority(element, 2000.0))
                     }
                 }
 
@@ -113,7 +113,7 @@ class CFMLCompletionContributor : CompletionContributor()
                     val currentRowElement = LookupElementBuilder.create("currentRow")
                         .withIcon(AllIcons.Nodes.Variable)
                         .withTypeText("query property", true)
-                    result.addElement(PrioritizedLookupElement.withPriority(currentRowElement, 999.0))
+                    result.addElement(PrioritizedLookupElement.withPriority(currentRowElement, 2000.0))
                 }
 
                 if (addedColumns.add("recordcount"))
@@ -121,7 +121,7 @@ class CFMLCompletionContributor : CompletionContributor()
                     val recordCountElement = LookupElementBuilder.create("recordCount")
                         .withIcon(AllIcons.Nodes.Variable)
                         .withTypeText("query property", true)
-                    result.addElement(PrioritizedLookupElement.withPriority(recordCountElement, 999.0))
+                    result.addElement(PrioritizedLookupElement.withPriority(recordCountElement, 2000.0))
                 }
                 return
             }
@@ -129,10 +129,7 @@ class CFMLCompletionContributor : CompletionContributor()
             return
         }
 
-        if (isAssigningVariable(chars, posOffset) || isAssigningVariable(chars, parameters.offset))
-        {
-            fillAssignmentVariants(parameters, chars, posOffset, result)
-        }
+        fillAssignmentVariants(parameters, chars, posOffset, result)
     }
 
     private fun fillComponentVariants(
@@ -238,7 +235,7 @@ class CFMLCompletionContributor : CompletionContributor()
             {
                 val isLocal = varDecl.isLocal || (currentFunc != null && varDecl.enclosingFunction == currentFunc)
                 val typeText = if (isLocal) "local variable" else "variable"
-                val priority = if (isLocal) 2000.0 else 999.0
+                val priority = if (isLocal) 2000.0 else 1500.0
                 val element = LookupElementBuilder.create(cleanName)
                     .withIcon(AllIcons.Nodes.Variable)
                     .withTypeText(typeText, true)

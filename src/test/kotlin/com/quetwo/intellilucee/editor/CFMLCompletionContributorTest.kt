@@ -1059,4 +1059,69 @@ class CFMLCompletionContributorTest : BasePlatformTestCase()
         assertTrue("localVar ($localVarIndex) should be before globalVar ($globalVarIndex)", localVarIndex < globalVarIndex)
         assertTrue("anotherLocal ($anotherLocalIndex) should be before globalVar ($globalVarIndex)", anotherLocalIndex < globalVarIndex)
     }
+
+    @Test
+    fun testPageDeclaredVariablesShownInAvailableListAndBeforeFunctions()
+    {
+        myFixture.configureByText(
+            "page.cfm",
+            """
+            <cfset pageVariable = "hello">
+            <cfset anotherPageVar = 123>
+            <cffunction name="helperFunction">
+                <cfreturn true>
+            </cffunction>
+            
+            <cfset <caret>>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements!!.map { it.lookupString }
+
+        val pageVarIndex = lookupStrings.indexOf("pageVariable")
+        val anotherVarIndex = lookupStrings.indexOf("anotherPageVar")
+        val helperFuncIndex = lookupStrings.indexOf("helperFunction")
+
+        assertTrue("pageVariable should be present in available list", pageVarIndex >= 0)
+        assertTrue("anotherPageVar should be present in available list", anotherVarIndex >= 0)
+        assertTrue("helperFunction should be present in available list", helperFuncIndex >= 0)
+
+        // Page variables should be shown before functions
+        assertTrue("pageVariable ($pageVarIndex) should be before helperFunction ($helperFuncIndex)", pageVarIndex < helperFuncIndex)
+        assertTrue("anotherPageVar ($anotherVarIndex) should be before helperFunction ($helperFuncIndex)", anotherVarIndex < helperFuncIndex)
+    }
+
+    @Test
+    fun testPageDeclaredVariablesInScriptFile()
+    {
+        myFixture.configureByText(
+            "page.cfs",
+            """
+            firstVar = "value";
+            secondVar = 42;
+            
+            function pageFunc() {
+            }
+            
+            <caret>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements!!.map { it.lookupString }
+
+        val firstVarIndex = lookupStrings.indexOf("firstVar")
+        val secondVarIndex = lookupStrings.indexOf("secondVar")
+        val funcIndex = lookupStrings.indexOf("pageFunc")
+
+        assertTrue("firstVar should be present", firstVarIndex >= 0)
+        assertTrue("secondVar should be present", secondVarIndex >= 0)
+        assertTrue("pageFunc should be present", funcIndex >= 0)
+
+        assertTrue("firstVar ($firstVarIndex) should be before pageFunc ($funcIndex)", firstVarIndex < funcIndex)
+        assertTrue("secondVar ($secondVarIndex) should be before pageFunc ($funcIndex)", secondVarIndex < funcIndex)
+    }
 }
