@@ -851,4 +851,212 @@ class CFMLCompletionContributorTest : BasePlatformTestCase()
         assertNotNull(lookupStrings)
         assertTrue(lookupStrings!!.contains("models.User"))
     }
+
+    @Test
+    fun testCompletionCfqueryColumnsAndProperties()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <CFQUERY name="userSelect">
+            SELECT userID, userHome, userData FROM table1
+            </CFQUERY>
+            <cfset userSelect.<caret>>
+            """.trimIndent()
+        )
+
+        myFixture.completeBasic()
+        val lookupStrings = myFixture.lookupElementStrings
+        assertNotNull("Lookup strings should not be null", lookupStrings)
+        assertTrue(lookupStrings!!.contains("userID"))
+        assertTrue(lookupStrings.contains("userHome"))
+        assertTrue(lookupStrings.contains("userData"))
+        assertTrue(lookupStrings.contains("currentRow"))
+        assertTrue(lookupStrings.contains("recordCount"))
+    }
+
+    @Test
+    fun testCompletionCfqueryNameAsAvailableVariable()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <CFQUERY name="userSelect">
+            SELECT userID, userHome, userData FROM table1
+            </CFQUERY>
+            <cfset myVar = <caret>>
+            """.trimIndent()
+        )
+
+        myFixture.completeBasic()
+        val lookupStrings = myFixture.lookupElementStrings
+        assertNotNull("Lookup strings should not be null", lookupStrings)
+        assertTrue(lookupStrings!!.contains("userSelect"))
+    }
+
+    @Test
+    fun testCompletionCfqueryAliasesAndComplexSelect()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfquery name="orderQuery" datasource="ds">
+            <!--- Query comment --->
+            SELECT DISTINCT TOP 100
+                o.order_id AS orderID,
+                COUNT(o.item_id) totalItems,
+                [custName],
+                `table2`.status,
+                CONCAT(first_name, ' ', last_name) AS fullName
+            FROM orders o
+            JOIN table2 ON o.id = table2.order_id
+            WHERE o.active = <cfqueryparam value="1" cfsqltype="cf_sql_integer">
+            ORDER BY o.order_id DESC
+            </cfquery>
+            <cfset orderQuery.<caret>>
+            """.trimIndent()
+        )
+
+        myFixture.completeBasic()
+        val lookupStrings = myFixture.lookupElementStrings
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("orderID"))
+        assertTrue(lookupStrings.contains("totalItems"))
+        assertTrue(lookupStrings.contains("custName"))
+        assertTrue(lookupStrings.contains("status"))
+        assertTrue(lookupStrings.contains("fullName"))
+        assertTrue(lookupStrings.contains("currentRow"))
+        assertTrue(lookupStrings.contains("recordCount"))
+    }
+
+    @Test
+    fun testCompletionCfquerySelectStarIncludesCurrentRowAndRecordCount()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfquery name="allUsers">
+            SELECT * FROM users
+            </cfquery>
+            <cfset allUsers.<caret>>
+            """.trimIndent()
+        )
+
+        myFixture.completeBasic()
+        val lookupStrings = myFixture.lookupElementStrings
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("currentRow"))
+        assertTrue(lookupStrings.contains("recordCount"))
+    }
+
+    @Test
+    fun testCompletionCfqueryInsideFunction()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cffunction name="fetchData">
+                <cfquery name="localQuery">
+                SELECT empId, deptCode FROM employees
+                </cfquery>
+                <cfset localQuery.<caret>>
+            </cffunction>
+            """.trimIndent()
+        )
+
+        myFixture.completeBasic()
+        val lookupStrings = myFixture.lookupElementStrings
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("empId"))
+        assertTrue(lookupStrings.contains("deptCode"))
+        assertTrue(lookupStrings.contains("currentRow"))
+        assertTrue(lookupStrings.contains("recordCount"))
+    }
+
+    @Test
+    fun testCompletionCfqueryInOutputHashTag()
+    {
+        myFixture.configureByText(
+            "test.cfm",
+            """
+            <cfquery name="userSelect">
+            SELECT userID, userHome, userData FROM table1
+            </cfquery>
+            <cfoutput>#userSelect.<caret>#</cfoutput>
+            """.trimIndent()
+        )
+
+        myFixture.completeBasic()
+        val lookupStrings = myFixture.lookupElementStrings
+        assertNotNull(lookupStrings)
+        assertTrue(lookupStrings!!.contains("userID"))
+        assertTrue(lookupStrings.contains("userHome"))
+        assertTrue(lookupStrings.contains("userData"))
+        assertTrue(lookupStrings.contains("currentRow"))
+        assertTrue(lookupStrings.contains("recordCount"))
+    }
+
+    @Test
+    fun testCompletionCfquerySqlColumnExtractorDirect()
+    {
+        val sql1 = """
+            SELECT userID, userHome, userData FROM table1
+        """.trimIndent()
+        assertEquals(listOf("userID", "userHome", "userData"), com.quetwo.intellilucee.model.CFMLModelParser.extractSqlColumns(sql1))
+
+        val sql2 = """
+            SELECT (SELECT max(salary) FROM emp) AS maxSalary, e.id AS empId, e.name, [dept_name] AS deptName
+            FROM employees e
+            WHERE e.active = 1
+        """.trimIndent()
+        assertEquals(listOf("maxSalary", "empId", "name", "deptName"), com.quetwo.intellilucee.model.CFMLModelParser.extractSqlColumns(sql2))
+    }
+
+    @Test
+    fun testLocalVariablesShownAtTopOfCompletionList()
+    {
+        myFixture.configureByText(
+            "test.cfc",
+            """
+            component {
+                variables.globalVar = "global";
+                
+                function myFunc(arg1) {
+                    var localVar = "local";
+                    var anotherLocal = "local2";
+                    var result = <caret>
+                }
+                
+                function otherFunc() {
+                }
+            }
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements!!.map { it.lookupString }
+        
+        // Local variables should appear before functions and global variables
+        val localVarIndex = lookupStrings.indexOf("localVar")
+        val anotherLocalIndex = lookupStrings.indexOf("anotherLocal")
+        val arg1Index = lookupStrings.indexOf("arg1")
+        val globalVarIndex = lookupStrings.indexOf("globalVar")
+        val otherFuncIndex = lookupStrings.indexOf("otherFunc")
+        val myFuncIndex = lookupStrings.indexOf("myFunc")
+
+        assertTrue("localVar should be present", localVarIndex >= 0)
+        assertTrue("anotherLocal should be present", anotherLocalIndex >= 0)
+        assertTrue("arg1 should be present", arg1Index >= 0)
+        assertTrue("globalVar should be present", globalVarIndex >= 0)
+        assertTrue("otherFunc should be present", otherFuncIndex >= 0)
+        assertTrue("myFunc should be present", myFuncIndex >= 0)
+
+        // Local vars (including function arguments / var declarations) should appear before functions and global variables
+        assertTrue("localVar ($localVarIndex) should be before otherFunc ($otherFuncIndex)", localVarIndex < otherFuncIndex)
+        assertTrue("anotherLocal ($anotherLocalIndex) should be before otherFunc ($otherFuncIndex)", anotherLocalIndex < otherFuncIndex)
+        assertTrue("arg1 ($arg1Index) should be before otherFunc ($otherFuncIndex)", arg1Index < otherFuncIndex)
+        assertTrue("localVar ($localVarIndex) should be before globalVar ($globalVarIndex)", localVarIndex < globalVarIndex)
+        assertTrue("anotherLocal ($anotherLocalIndex) should be before globalVar ($globalVarIndex)", anotherLocalIndex < globalVarIndex)
+    }
 }

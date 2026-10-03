@@ -8,11 +8,13 @@ import com.quetwo.intellilucee.CFMLLanguage
 import com.quetwo.intellilucee.model.CFMLDocumentModel
 import com.quetwo.intellilucee.model.CFMLFunctionDeclaration
 import com.quetwo.intellilucee.model.CFMLModelParser
+import com.quetwo.intellilucee.model.CFMLQueryDeclaration
 import com.quetwo.intellilucee.model.CFMLVariableDeclaration
 
 object CFMLPsiUtil {
 
-    fun isCFMLFile(file: PsiFile?): Boolean {
+    fun isCFMLFile(file: PsiFile?): Boolean
+    {
         if (file == null) return false
         if (file.language == CFMLLanguage.INSTANCE) return true
         val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
@@ -20,52 +22,64 @@ object CFMLPsiUtil {
         return ext in setOf("cfm", "cfc", "cfs", "cfml")
     }
 
-    fun isCFCFile(file: PsiFile?): Boolean {
+    fun isCFCFile(file: PsiFile?): Boolean
+    {
         if (file == null) return false
         val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
         val ext = vFile.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
         return ext == "cfc"
     }
 
-    fun getModel(file: PsiFile): CFMLDocumentModel {
-        return CachedValuesManager.getCachedValue(file) {
+    fun getModel(file: PsiFile): CFMLDocumentModel
+    {
+        return CachedValuesManager.getCachedValue(file)
+        {
             val model = CFMLModelParser.parse(file.text)
             CachedValueProvider.Result.create(model, file)
         }
     }
 
-    fun getFunctionElement(file: PsiFile, decl: CFMLFunctionDeclaration): CFMLFunctionElement {
+    fun getFunctionElement(file: PsiFile, decl: CFMLFunctionDeclaration): CFMLFunctionElement
+    {
         return CFMLFunctionElement(file, decl)
     }
 
-    fun getVariableElement(file: PsiFile, decl: CFMLVariableDeclaration): CFMLVariableElement {
+    fun getVariableElement(file: PsiFile, decl: CFMLVariableDeclaration): CFMLVariableElement
+    {
         return CFMLVariableElement(file, decl)
     }
 
-    fun findDeclarationElementAt(file: PsiFile, offset: Int): PsiElement? {
+    fun findDeclarationElementAt(file: PsiFile, offset: Int): PsiElement?
+    {
         val model = getModel(file)
         val symbol = model.findSymbolAt(offset) ?: return null
-        return when (symbol) {
+        return when (symbol)
+        {
             is CFMLFunctionDeclaration -> getFunctionElement(file, symbol)
             is CFMLVariableDeclaration -> getVariableElement(file, symbol)
+            is CFMLQueryDeclaration -> getVariableElement(file, CFMLVariableDeclaration(symbol.name, symbol.nameRange, symbol.range, symbol.isLocal, symbol.enclosingFunction))
             else -> null
         }
     }
 
-    fun resolveSymbolAt(file: PsiFile, offset: Int): PsiElement? {
+    fun resolveSymbolAt(file: PsiFile, offset: Int): PsiElement?
+    {
         val model = getModel(file)
         val symbol = model.findSymbolAt(offset) ?: return null
         return when (symbol) {
-            is com.quetwo.intellilucee.model.CFMLFunctionCall -> {
+            is com.quetwo.intellilucee.model.CFMLFunctionCall ->
+                {
                 val decl = model.findFunctionDeclaration(symbol.name)
                 decl?.let { getFunctionElement(file, it) }
             }
-            is com.quetwo.intellilucee.model.CFMLVariableUsage -> {
+            is com.quetwo.intellilucee.model.CFMLVariableUsage ->
+                {
                 val decl = model.findVariableDeclaration(symbol.fullName ?: symbol.name, offset)
                 decl?.let { getVariableElement(file, it) }
             }
             is CFMLFunctionDeclaration -> getFunctionElement(file, symbol)
             is CFMLVariableDeclaration -> getVariableElement(file, symbol)
+            is CFMLQueryDeclaration -> getVariableElement(file, CFMLVariableDeclaration(symbol.name, symbol.nameRange, symbol.range, symbol.isLocal, symbol.enclosingFunction))
         }
     }
 }

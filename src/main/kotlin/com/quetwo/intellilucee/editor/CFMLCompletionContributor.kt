@@ -88,6 +88,44 @@ class CFMLCompletionContributor : CompletionContributor()
                     return
                 }
             }
+
+            // Check if variable is a query
+            val model = if (CFMLPsiUtil.isCFMLFile(file)) CFMLPsiUtil.getModel(file) else CFMLModelParser.parse(chars.toString())
+            val queryDecl = model.findQueryDeclaration(varInfo.varName, posOffset)
+                ?: model.findQueryDeclaration(varInfo.varName, parameters.offset)
+
+            if (queryDecl != null)
+            {
+                val addedColumns = mutableSetOf<String>()
+                for (col in queryDecl.columns)
+                {
+                    if (addedColumns.add(col.lowercase()))
+                    {
+                        val element = LookupElementBuilder.create(col)
+                            .withIcon(AllIcons.Nodes.Variable)
+                            .withTypeText("query column", true)
+                        result.addElement(PrioritizedLookupElement.withPriority(element, 1000.0))
+                    }
+                }
+
+                if (addedColumns.add("currentrow"))
+                {
+                    val currentRowElement = LookupElementBuilder.create("currentRow")
+                        .withIcon(AllIcons.Nodes.Variable)
+                        .withTypeText("query property", true)
+                    result.addElement(PrioritizedLookupElement.withPriority(currentRowElement, 999.0))
+                }
+
+                if (addedColumns.add("recordcount"))
+                {
+                    val recordCountElement = LookupElementBuilder.create("recordCount")
+                        .withIcon(AllIcons.Nodes.Variable)
+                        .withTypeText("query property", true)
+                    result.addElement(PrioritizedLookupElement.withPriority(recordCountElement, 999.0))
+                }
+                return
+            }
+
             return
         }
 
@@ -180,6 +218,7 @@ class CFMLCompletionContributor : CompletionContributor()
         }
 
         // 2. Add in-scope variables from current document
+        // Local variables should always be shown at the top of the list.
         val addedVars = mutableSetOf<String>()
         val inScopeVars = model.variableDeclarations.filter { decl ->
             if (decl.enclosingFunction == null || !decl.isLocal)
@@ -197,10 +236,13 @@ class CFMLCompletionContributor : CompletionContributor()
             val cleanName = CFMLDocumentModel.cleanVariableName(varDecl.name)
             if (cleanName.isNotEmpty() && addedVars.add(cleanName.lowercase()))
             {
+                val isLocal = varDecl.isLocal || (currentFunc != null && varDecl.enclosingFunction == currentFunc)
+                val typeText = if (isLocal) "local variable" else "variable"
+                val priority = if (isLocal) 2000.0 else 999.0
                 val element = LookupElementBuilder.create(cleanName)
                     .withIcon(AllIcons.Nodes.Variable)
-                    .withTypeText("variable", true)
-                result.addElement(PrioritizedLookupElement.withPriority(element, 999.0))
+                    .withTypeText(typeText, true)
+                result.addElement(PrioritizedLookupElement.withPriority(element, priority))
             }
         }
     }
