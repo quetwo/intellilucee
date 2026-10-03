@@ -48,7 +48,7 @@ class CFMLFindUsagesHandler(private val namedElement: CFMLNamedElement) : FindUs
         processor: Processor<in UsageInfo>,
         options: FindUsagesOptions): Boolean
     {
-        val file = namedElement.containingFile ?: return true
+        val file = namedElement.containingFile
         val model = CFMLPsiUtil.getModel(file)
 
         when (val symbol = namedElement.symbol)
@@ -88,7 +88,7 @@ class CFMLFindUsagesHandler(private val namedElement: CFMLNamedElement) : FindUs
 
     override fun findReferencesToHighlight(target: PsiElement, searchScope: SearchScope): Collection<PsiReference>
     {
-        val file = namedElement.containingFile ?: return emptyList()
+        val file = namedElement.containingFile
         val model = CFMLPsiUtil.getModel(file)
         val refs = mutableListOf<PsiReference>()
 
@@ -99,7 +99,13 @@ class CFMLFindUsagesHandler(private val namedElement: CFMLNamedElement) : FindUs
                 val calls = model.findFunctionCalls(symbol.name)
                 for (call in calls)
                 {
-                    refs.add(CFMLPsiReference(file, call.range, namedElement))
+                    val psiElem = file.findElementAt(call.range.startOffset) ?: file
+                    if (psiElem !== file) {
+                        val relRange = call.range.shiftRight(-psiElem.textRange.startOffset)
+                        refs.add(CFMLPsiReference(psiElem, relRange, namedElement))
+                    } else {
+                        refs.add(CFMLPsiReference(file, call.range, namedElement))
+                    }
                 }
             }
 
@@ -108,7 +114,14 @@ class CFMLFindUsagesHandler(private val namedElement: CFMLNamedElement) : FindUs
                 val usages = model.findVariableUsages(symbol)
                 for (u in usages)
                 {
-                    refs.add(CFMLPsiReference(file, u.range, namedElement))
+                    val targetRange = u.nameRange
+                    val psiElem = file.findElementAt(targetRange.startOffset) ?: file
+                    if (psiElem !== file) {
+                        val relRange = targetRange.shiftRight(-psiElem.textRange.startOffset)
+                        refs.add(CFMLPsiReference(psiElem, relRange, namedElement))
+                    } else {
+                        refs.add(CFMLPsiReference(file, targetRange, namedElement))
+                    }
                 }
             }
 
