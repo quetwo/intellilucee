@@ -63,7 +63,21 @@ class CFMLTypedHandlerTest : BasePlatformTestCase() {
     fun testNoSelectionTypeHash() {
         myFixture.configureByText("test.cfm", "<cfset foo<caret> = 1>")
         myFixture.type('#')
-        myFixture.checkResult("<cfset foo#<caret> = 1>")
+        myFixture.checkResult("<cfset foo#<caret># = 1>")
+    }
+
+    @Test
+    fun testNoSelectionTypeHashDisabledWhenAutoCloseDisabled() {
+        val globalSettings = CFMLGlobalSettings.getInstance()
+        val original = globalSettings.state.autoCloseTags
+        try {
+            globalSettings.state.autoCloseTags = false
+            myFixture.configureByText("test.cfm", "<cfset foo<caret> = 1>")
+            myFixture.type('#')
+            myFixture.checkResult("<cfset foo#<caret> = 1>")
+        } finally {
+            globalSettings.state.autoCloseTags = original
+        }
     }
 
     @Test
@@ -74,7 +88,7 @@ class CFMLTypedHandlerTest : BasePlatformTestCase() {
             settings.SURROUND_SELECTION_ON_QUOTE_TYPED = false
             myFixture.configureByText("test.cfm", "<cfset <selection>foo</selection> = 1>")
             myFixture.type('#')
-            myFixture.checkResult("<cfset #<caret> = 1>")
+            myFixture.checkResult("<cfset #<caret># = 1>")
         } finally {
             settings.SURROUND_SELECTION_ON_QUOTE_TYPED = original
         }

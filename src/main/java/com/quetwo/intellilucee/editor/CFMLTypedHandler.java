@@ -145,7 +145,7 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
             return Result.CONTINUE;
         }
 
-        if (c != '>' && c != '{')
+        if (c != '>' && c != '{' && c != '#')
         {
             return Result.CONTINUE;
         }
@@ -173,8 +173,22 @@ public class CFMLTypedHandler extends TypedHandlerDelegate
         {
             handleOpeningBraceTyped(offset, document, chars);
         }
+        else if (c == '#')
+        {
+            handlePoundTyped(offset, document, chars);
+        }
 
         return Result.CONTINUE;
+    }
+
+    private static void handlePoundTyped(int offset, @NotNull Document document, @NotNull CharSequence chars)
+    {
+        if (offset <= 0 || offset > chars.length() || chars.charAt(offset - 1) != '#')
+        {
+            return;
+        }
+
+        document.insertString(offset, "#");
     }
 
     private static void handleGreaterThanTyped(int offset, @NotNull Document document, @NotNull CharSequence chars)
