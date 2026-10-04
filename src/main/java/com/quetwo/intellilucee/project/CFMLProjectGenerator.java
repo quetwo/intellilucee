@@ -68,6 +68,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 writeFile(webroot, "index.cfm", "");
                 writeFile(webroot, "Application.cfc", "");
                 writeFile(baseDir, ".gitignore", gitignore(settings));
+                writeFile(baseDir, "README.md", readme(settings));
 
                 if (settings.dockerEnabled)
                 {
@@ -126,6 +127,58 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             file = directory.createChildData(CFMLProjectGenerator.class, name);
         }
         VfsUtil.saveText(file, content);
+    }
+
+    private static @NotNull String readme(@NotNull Settings settings)
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append("# ").append(settings.appName).append("\n\n");
+        builder.append("This project was generated using the ColdFusion project generator. Below is an overview of the project structure and a list of TODO items to help you get started.\n\n");
+        builder.append("## Directory Structure\n\n");
+        builder.append("- `frontend/` - ColdFusion application home directory.\n");
+        builder.append("  - `frontend/webroot/` - Directory where ColdFusion code is stored.\n");
+        builder.append("    - `frontend/webroot/Application.cfc` - Sample Application configuration file.\n");
+        builder.append("    - `frontend/webroot/index.cfm` - Sample ColdFusion entry point page.\n");
+
+        if (settings.dockerEnabled)
+        {
+            builder.append("  - `docker-compose.yml` - Multi-container Docker configuration file.\n");
+            builder.append("  - `frontend/Dockerfile` - Dockerfile for the ColdFusion frontend application container.\n");
+            builder.append("  - `frontend/secrets.txt` - Environment and secret variables for the ColdFusion container.\n");
+
+            if (settings.includeDatabase)
+            {
+                builder.append("- `db/` - Database container configurations.\n");
+                builder.append("  - `db/secrets.txt` - Database secrets and configuration passwords.\n");
+                builder.append("  - `db/sql/` - Contains any SQL scripts to run on database startup.\n");
+            }
+
+            if (settings.includeReverseProxy)
+            {
+                builder.append("- `proxy/` - Traefik reverse proxy configuration directory.\n");
+                builder.append("  - `proxy/config.toml` - Traefik reverse proxy configuration file.\n");
+            }
+        }
+
+        builder.append("\n## TODO\n\n");
+        builder.append("- Modify the `Application.cfc` file in `frontend/webroot/Application.cfc` to match your application's needs.\n");
+
+        if (settings.dockerEnabled)
+        {
+            builder.append("- Change the Lucee administrator password located in `frontend/secrets.txt`.\n");
+
+            if (settings.includeDatabase)
+            {
+                builder.append("- Change the default database passwords located in `db/secrets.txt`.\n");
+            }
+
+            if (settings.includeReverseProxy)
+            {
+                builder.append("- Modify `docker-compose.yml` to include a proper domain name for the reverse proxy.\n");
+            }
+        }
+
+        return builder.toString();
     }
 
     private static @NotNull String gitignore(@NotNull Settings settings)
