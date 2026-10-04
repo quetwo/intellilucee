@@ -103,6 +103,15 @@
         <findUsagesHandlerFactory
                 implementation="com.quetwo.intellilucee.editor.CFMLFindUsagesHandlerFactory"/>
 
+        <!-- Rename support for CFML functions and variables -->
+        <renameHandler implementation="com.quetwo.intellilucee.refactoring.CFMLRenameHandler"/>
+        <renamePsiElementProcessor implementation="com.quetwo.intellilucee.refactoring.CFMLRenamePsiElementProcessor"/>
+
+        <!-- Target element evaluator for resolving declarations and usages -->
+        <targetElementEvaluator
+                language="CFML"
+                implementationClass="com.quetwo.intellilucee.editor.CFMLTargetElementEvaluator"/>
+
         <!-- Goto Declaration (Ctrl-Click / Cmd-Click) for CFML functions and variables -->
         <gotoDeclarationHandler
                 implementation="com.quetwo.intellilucee.editor.CFMLGotoDeclarationHandler"/>

@@ -1,11 +1,11 @@
 package com.quetwo.intellilucee.psi
 
 import com.intellij.openapi.util.TextRange
+import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiNameIdentifierOwner
 import com.intellij.psi.impl.FakePsiElement
-import com.intellij.util.IncorrectOperationException
 import com.quetwo.intellilucee.CFMLIcon
 import com.quetwo.intellilucee.model.CFMLFunctionDeclaration
 import com.quetwo.intellilucee.model.CFMLSymbol
@@ -15,7 +15,7 @@ import javax.swing.Icon
 abstract class CFMLNamedElement(
     private val containingPsiFile: PsiFile,
     open val symbol: CFMLSymbol,
-    private val nameRange: TextRange
+    val nameRange: TextRange
 ) : FakePsiElement(), PsiNameIdentifierOwner {
 
     override fun getParent(): PsiElement = containingPsiFile
@@ -42,7 +42,14 @@ abstract class CFMLNamedElement(
     override fun getNameIdentifier(): PsiElement = this
 
     override fun setName(name: String): PsiElement {
-        throw IncorrectOperationException("Rename is not supported")
+        val document = containingPsiFile.viewProvider.document
+            ?: PsiDocumentManager.getInstance(project).getDocument(containingPsiFile)
+            ?: return this
+
+        document.replaceString(nameRange.startOffset, nameRange.endOffset, name)
+        PsiDocumentManager.getInstance(project).commitDocument(document)
+
+        return CFMLPsiUtil.findDeclarationElementAt(containingPsiFile, nameRange.startOffset) ?: this
     }
 
     override fun canNavigate(): Boolean = true
@@ -56,6 +63,14 @@ abstract class CFMLNamedElement(
             file,
             nameRange.startOffset
         ).navigate(requestFocus)
+    }
+
+    override fun isEquivalentTo(another: PsiElement?): Boolean {
+        if (this === another) return true
+        if (another !is CFMLNamedElement) return false
+        return containingPsiFile == another.containingPsiFile &&
+                symbol.name.equals(another.symbol.name, ignoreCase = true) &&
+                symbol.range == another.symbol.range
     }
 
     override fun equals(other: Any?): Boolean {
