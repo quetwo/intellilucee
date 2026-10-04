@@ -67,6 +67,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
 
                 writeFile(webroot, "index.cfm", "");
                 writeFile(webroot, "Application.cfc", "");
+                writeFile(baseDir, ".gitignore", gitignore(settings));
 
                 if (settings.dockerEnabled)
                 {
@@ -125,6 +126,22 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             file = directory.createChildData(CFMLProjectGenerator.class, name);
         }
         VfsUtil.saveText(file, content);
+    }
+
+    private static @NotNull String gitignore(@NotNull Settings settings)
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append(".idea/\n");
+        builder.append("*.iml\n");
+        if (settings.dockerEnabled)
+        {
+            builder.append("frontend/secrets.txt\n");
+        }
+        if (settings.includeDatabase)
+        {
+            builder.append("db/secrets.txt\n");
+        }
+        return builder.toString();
     }
 
     private static @NotNull String dockerfile(@NotNull Settings settings)
@@ -266,7 +283,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         public final boolean includeReverseProxy;
         public final @NotNull String domainName;
 
-        private Settings(@NotNull String appName, @NotNull String luceeVersion, boolean dockerEnabled, boolean includeDatabase, @NotNull String databaseType, boolean includeReverseProxy, @NotNull String domainName)
+        public Settings(@NotNull String appName, @NotNull String luceeVersion, boolean dockerEnabled, boolean includeDatabase, @NotNull String databaseType, boolean includeReverseProxy, @NotNull String domainName)
         {
             this.appName = appName;
             this.luceeVersion = luceeVersion;
