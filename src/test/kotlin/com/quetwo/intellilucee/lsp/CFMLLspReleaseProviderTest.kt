@@ -41,17 +41,31 @@ class CFMLLspReleaseProviderTest
     @Test
     fun testResolveDownloadUrlForLatestAndCustomVersions()
     {
-        val archiveName = "cfmleditor-lsp-windows-amd64.zip"
+        val archiveName = "clif-windows-amd64.zip"
         val latestUrl = CFMLLspClientDescriptor.resolveDownloadUrl("LATEST", archiveName)
         assertEquals(
-            "https://github.com/cfmleditor/cfmleditor-lsp/releases/latest/download/cfmleditor-lsp-windows-amd64.zip",
+            "https://github.com/cfmleditor/clif/releases/latest/download/clif-windows-amd64.zip",
             latestUrl
         )
 
-        val versionedUrl = CFMLLspClientDescriptor.resolveDownloadUrl("v0.2.8", archiveName)
+        val versionedUrl = CFMLLspClientDescriptor.resolveDownloadUrl("v0.2.8", "cfmleditor-lsp-windows-amd64.zip")
         assertEquals(
-            "https://github.com/cfmleditor/cfmleditor-lsp/releases/download/v0.2.8/cfmleditor-lsp-windows-amd64.zip",
+            "https://github.com/cfmleditor/clif/releases/download/v0.2.8/cfmleditor-lsp-windows-amd64.zip",
             versionedUrl
+        )
+    }
+
+    @Test
+    fun testArchiveCandidatesTryClifThenTheNameBeforeTheRename()
+    {
+        // A release from before the rename publishes only cfmleditor-lsp archives.
+        assertEquals(
+            listOf("clif-darwin-arm64.tar.gz" to "clif", "cfmleditor-lsp-darwin-arm64.tar.gz" to "cfmleditor-lsp"),
+            CFMLLspClientDescriptor.archiveCandidates("darwin", "arm64", windows = false)
+        )
+        assertEquals(
+            listOf("clif-windows-amd64.zip" to "clif.exe", "cfmleditor-lsp-windows-amd64.zip" to "cfmleditor-lsp.exe"),
+            CFMLLspClientDescriptor.archiveCandidates("windows", "amd64", windows = true)
         )
     }
 }
