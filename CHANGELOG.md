@@ -12,3 +12,4 @@
 - Generated `.gitignore` for new projects using the project generator.  Won't commit secret or IDE properties.
 - Generated `README.md` file when using the project generator with directory structure and setup todos
 - Generated sample `index.cfm` entry point with server info output when using the project generator
+- Generated `Application.cfc` template with application name, timeouts, and datasource configuration when using the project generator

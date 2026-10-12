@@ -66,7 +66,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 }
 
                 writeFile(webroot, "index.cfm", indexCfm(settings));
-                writeFile(webroot, "Application.cfc", "");
+                writeFile(webroot, "Application.cfc", applicationCfc(settings));
                 writeFile(baseDir, ".gitignore", gitignore(settings));
                 writeFile(baseDir, "README.md", readme(settings));
 
@@ -74,7 +74,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 {
                     writeFile(baseDir, "docker-compose.yml", dockerCompose(settings));
                     writeFile(cfml, "Dockerfile", dockerfile(settings));
-                    writeFile(cfml, "secrets.txt", cfSecretsFile(settings));
+                    writeFile(cfml, "secrets.txt", cfSecretsFile());
 
                     if (settings.includeDatabase)
                     {
@@ -146,6 +146,31 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 </body>
                 </html>
                 """.formatted(settings.appName, settings.appName);
+    }
+
+    private static @NotNull String applicationCfc(@NotNull Settings settings)
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append("component {\n");
+        builder.append("    this.name = \"").append(settings.appName).append("\";\n");
+        builder.append("    this.sessionManagement = true;\n");
+        builder.append("    this.sessionTimeout = createTimeSpan(0, 0, 30, 0);\n");
+        builder.append("    this.applicationTimeout = createTimeSpan(0, 12, 0, 0);\n");
+        if (settings.includeDatabase)
+        {
+            switch (settings.databaseType)
+            {
+                case "mysql": case "mariadb":
+                    builder.append("    this.datasource = {class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};");
+                    break;
+                case "Postgres":
+                    break;
+                case "MSSQL":
+                    break;
+            }
+        }
+        builder.append("}\n");
+        return builder.toString();
     }
 
     private static @NotNull String readme(@NotNull Settings settings)
@@ -315,7 +340,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         return  builder.toString();
     }
 
-    private static @NotNull String cfSecretsFile(@NotNull Settings settings)
+    private static @NotNull String cfSecretsFile()
     {
         StringBuilder builder = new StringBuilder();
         builder.append("LUCEE_ADMIN_ENABLES=true\n");
