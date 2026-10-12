@@ -86,7 +86,7 @@ class CFMLStructureViewElement(
 
     override fun navigate(requestFocus: Boolean) {
         if (element is com.intellij.pom.Navigatable && element.canNavigate()) {
-            element.navigate(requestFocus)
+            com.intellij.util.OpenSourceUtil.navigate(requestFocus, element)
         }
     }
 
