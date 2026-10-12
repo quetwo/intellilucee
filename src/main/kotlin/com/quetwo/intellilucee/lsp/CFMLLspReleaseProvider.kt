@@ -12,7 +12,7 @@ object CFMLLspReleaseProvider
     private val LOG: Logger = Logger.getInstance(CFMLLspReleaseProvider::class.java)
 
     const val LATEST = "LATEST"
-    private const val GITHUB_RELEASES_API_URL = "https://api.github.com/repos/cfmleditor/cfmleditor-lsp/releases"
+    private const val GITHUB_RELEASES_API_URL = "https://api.github.com/repos/cfmleditor/clif/releases"
 
     private val FALLBACK_VERSIONS = listOf(
         "v0.3.6",

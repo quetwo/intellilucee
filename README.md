@@ -3,13 +3,13 @@
 IntelliLucee is a plugin for IntelliJ Platform based IDEs (IntelliJ IDEA, WebStorm, PHPStorm, etc.)  It provides
 the IDE with the ability to process ColdFusion Markup Language based files used by Lucee, Adobe ColdFusion and 
 BoxLang. It provides modern IDE functionality using a combination of built-in code and functionality sourced from
-the [CFMLEditor-LSP project](https://github.com/cfmleditor/cfmleditor-lsp).
+the [clif project](https://github.com/cfmleditor/clif) (formerly CFMLEditor-LSP).
 
 This plugin targets the "Community" or free version of IntelliJ and should have no dependencies on licensed features.
 Licensed features of the IDE may add additional tooling for the end user, such as AI support that may be useful.
 
 The project is written in a combination of Kotlin and Java.  It requires Gradle and the IntelliJ SDK to compile. 
-Downstream projects, like the CFMLEditor-LSP and TextMate grammar processor utilize other languages such as Go.
+Downstream projects, like clif (formerly CFMLEditor-LSP) and TextMate grammar processor utilize other languages such as Go.
 
 ## Overview
 
@@ -74,7 +74,7 @@ The project includes GitHub issue templates:
 
 ## Useful links
 
-- [CFMLEditor-LSP Project](https://github.com/cfmleditor/cfmleditor-lsp)
+- [clif Project](https://github.com/cfmleditor/clif) (formerly CFMLEditor-LSP)
 - [CFML-TreeSitter Project](https://github.com/cfmleditor/tree-sitter-cfml)
 - [Lucee Runtime Engine](https://lucee.org/)
 - [IntelliJ Platform SDK Plugin SDK][docs]
