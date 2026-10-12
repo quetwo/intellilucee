@@ -21,7 +21,7 @@ import java.util.List;
 
 public final class CFMLOpenActiveApplicationFileAction extends AnAction
 {
-    private static final String COMMAND = "cfmleditor.openActiveApplicationFile";
+    private static final String COMMAND = "clif.openActiveApplicationFile";
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent event)

@@ -21,7 +21,7 @@ import java.util.List;
 
 public final class CFMLFormatDocument extends AnAction
 {
-    private static final String COMMAND = "cfmleditor.format";
+    private static final String COMMAND = "clif.format";
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent event)
