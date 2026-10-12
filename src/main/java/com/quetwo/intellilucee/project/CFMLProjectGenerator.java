@@ -160,12 +160,14 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         {
             switch (settings.databaseType)
             {
-                case "mysql": case "mariadb":
-                    builder.append("    this.datasource = {class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};");
+                case "MySQL": case "MariaDB": case "mysql": case "mariadb":
+                    builder.append("    this.datasource = {class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
                     break;
-                case "Postgres":
+                case "Postgres": case "postgres": case "PostgreSQL": case "postgresql":
+                    builder.append("    this.datasource = {class: 'org.postgresql.Driver'\n      , bundleName: 'org.postgresql.jdbc'\n      , bundleVersion: '42.7.4'\n      , connectionString: 'jdbc:postgresql://db:5432/' & server.system.environment.POSTGRES_DB\n      , username: server.system.environment.POSTGRES_USER\n      , password: server.system.environment.POSTGRES_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
                     break;
-                case "MSSQL":
+                case "MSSQL": case "mssql":
+                    builder.append("    this.datasource = {class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'\n      , bundleName: 'com.microsoft.sqlserver.mssql-jdbc'\n      , bundleVersion: '12.8.1.jre11'\n      , connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'\n      , username: 'sa'\n      , password: server.system.environment.MSSQL_SA_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
                     break;
             }
         }
