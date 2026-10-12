@@ -13,3 +13,4 @@
 - Generated `README.md` file when using the project generator with directory structure and setup todos
 - Generated sample `index.cfm` entry point with server info output when using the project generator
 - Generated `Application.cfc` template with application name, timeouts, and datasource configuration when using the project generator
+- Generated database secrets file (`db/secrets.txt`) for Postgres and Microsoft SQL Server when using the project generator

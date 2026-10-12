@@ -335,7 +335,17 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 builder.append("\nMYSQL_PASSWORD=").append(QuickRandom.generateString(14));
                 builder.append("\nDB_HOST=db");
                 break;
-            //TODO: ADD Secrets for POSTGRES and MSSQL
+            case "Postgres":
+                builder.append("POSTGRES_PASSWORD=").append(QuickRandom.generateString(24));
+                builder.append("\nPOSTGRES_DB=db_").append(settings.appName);
+                builder.append("\nPOSTGRES_USER=").append(settings.appName).append("_user");
+                builder.append("\nDB_HOST=db");
+                break;
+            case "MSSQL":
+                builder.append("ACCEPT_EULA=Y");
+                builder.append("\nMSSQL_SA_PASSWORD=").append(QuickRandom.generateString(24));
+                builder.append("\nDB_HOST=db");
+                break;
         }
         return  builder.toString();
     }

@@ -219,4 +219,55 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
         assertTrue(content.contains("db/secrets.txt"))
         assertTrue(content.contains("domain name"))
     }
+
+    @Test
+    fun testGenerateProjectWithPostgresDatabaseSecrets()
+    {
+        val rootDir = myFixture.tempDirFixture.findOrCreateDir("proj_postgres_db")
+        val settings = CFMLProjectGenerator.Settings(
+            "pg-app",
+            "7.0.x",
+            true,
+            true,
+            "Postgres",
+            false,
+            "pg-app.local"
+        )
+
+        generator.generateProject(project, rootDir, settings, null)
+
+        val dbSecretsFile = rootDir.findChild("db")?.findChild("secrets.txt")
+        assertNotNull("Expected db/secrets.txt to be created", dbSecretsFile)
+
+        val content = String(dbSecretsFile!!.contentsToByteArray())
+        assertTrue(content.contains("POSTGRES_PASSWORD="))
+        assertTrue(content.contains("POSTGRES_DB=db_pg-app"))
+        assertTrue(content.contains("POSTGRES_USER=pg-app_user"))
+        assertTrue(content.contains("DB_HOST=db"))
+    }
+
+    @Test
+    fun testGenerateProjectWithMssqlDatabaseSecrets()
+    {
+        val rootDir = myFixture.tempDirFixture.findOrCreateDir("proj_mssql_db")
+        val settings = CFMLProjectGenerator.Settings(
+            "mssql-app",
+            "7.0.x",
+            true,
+            true,
+            "MSSQL",
+            false,
+            "mssql-app.local"
+        )
+
+        generator.generateProject(project, rootDir, settings, null)
+
+        val dbSecretsFile = rootDir.findChild("db")?.findChild("secrets.txt")
+        assertNotNull("Expected db/secrets.txt to be created", dbSecretsFile)
+
+        val content = String(dbSecretsFile!!.contentsToByteArray())
+        assertTrue(content.contains("ACCEPT_EULA=Y"))
+        assertTrue(content.contains("MSSQL_SA_PASSWORD="))
+        assertTrue(content.contains("DB_HOST=db"))
+    }
 }
