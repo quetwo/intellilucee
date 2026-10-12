@@ -65,7 +65,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                     return;
                 }
 
-                writeFile(webroot, "index.cfm", "");
+                writeFile(webroot, "index.cfm", indexCfm(settings));
                 writeFile(webroot, "Application.cfc", "");
                 writeFile(baseDir, ".gitignore", gitignore(settings));
                 writeFile(baseDir, "README.md", readme(settings));
@@ -127,6 +127,25 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             file = directory.createChildData(CFMLProjectGenerator.class, name);
         }
         VfsUtil.saveText(file, content);
+    }
+
+    private static @NotNull String indexCfm(@NotNull Settings settings)
+    {
+        return """
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>%s</title>
+                </head>
+                <body>
+                    <cfoutput>
+                        <h1>Welcome to %s</h1>
+                        <p>Running on #server.productname# version #server.productversion#</p>
+                    </cfoutput>
+                </body>
+                </html>
+                """.formatted(settings.appName, settings.appName);
     }
 
     private static @NotNull String readme(@NotNull Settings settings)
