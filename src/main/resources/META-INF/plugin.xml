@@ -3,7 +3,7 @@
     <id>com.quetwo.IntelliLucee</id>
     <name>Lucee CFML</name>
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
-    <vendor url="https://www.lucee.org">Lucee Association Switzerland</vendor>
+    <vendor url="https://github.com/quetwo/">Nick Kwiatkowski</vendor>
     <description><![CDATA[
         Plugin for the Lucee CFML runtime that helps developers build ColdFusion based applications.  Compatible with
         Lucee, Adobe ColdFusion and BoxLang based engines.
