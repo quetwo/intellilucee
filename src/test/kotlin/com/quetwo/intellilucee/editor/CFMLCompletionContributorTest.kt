@@ -1124,4 +1124,112 @@ class CFMLCompletionContributorTest : BasePlatformTestCase()
         assertTrue("firstVar ($firstVarIndex) should be before pageFunc ($funcIndex)", firstVarIndex < funcIndex)
         assertTrue("secondVar ($secondVarIndex) should be before pageFunc ($funcIndex)", secondVarIndex < funcIndex)
     }
+
+    @Test
+    fun testCfmOutsideCfTagsSuggestsHtmlAndJavaScriptItems()
+    {
+        myFixture.configureByText(
+            "index.cfm",
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <script>
+                    function handleUserSubmit(event) {
+                        var submitToken = "abc123";
+                        const maxRetries = 3;
+                    }
+                    const validateForm = (formData) => true;
+                </script>
+            </head>
+            <body>
+                <cfset cfServerVar = "serverValue">
+                <div id="mainContainer" class="app-layout responsive-grid">
+                    <button id="submitBtn" class="btn btn-primary" onclick="handleUserSubmit(event)">Submit</button>
+                    <p class="description">
+                        <caret>
+                    </p>
+                </div>
+            </body>
+            </html>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull("Lookup elements should not be null", elements)
+        val lookupStrings = elements!!.map { it.lookupString }
+
+        // HTML tags
+        assertTrue(lookupStrings.contains("div"))
+        assertTrue(lookupStrings.contains("button"))
+        assertTrue(lookupStrings.contains("p"))
+        assertTrue(lookupStrings.contains("script"))
+        assertTrue(lookupStrings.contains("body"))
+
+        // HTML attributes
+        assertTrue(lookupStrings.contains("class"))
+        assertTrue(lookupStrings.contains("id"))
+        assertTrue(lookupStrings.contains("onclick"))
+
+        // HTML IDs and Classes
+        assertTrue(lookupStrings.contains("mainContainer"))
+        assertTrue(lookupStrings.contains("submitBtn"))
+        assertTrue(lookupStrings.contains("app-layout"))
+        assertTrue(lookupStrings.contains("responsive-grid"))
+        assertTrue(lookupStrings.contains("btn"))
+        assertTrue(lookupStrings.contains("btn-primary"))
+        assertTrue(lookupStrings.contains("description"))
+
+        // JavaScript functions and variables
+        assertTrue(lookupStrings.contains("handleUserSubmit"))
+        assertTrue(lookupStrings.contains("validateForm"))
+        assertTrue(lookupStrings.contains("submitToken"))
+        assertTrue(lookupStrings.contains("maxRetries"))
+    }
+
+    @Test
+    fun testCfmInsideCfscriptDoesNotSuggestHtmlOnlyItems()
+    {
+        myFixture.configureByText(
+            "scriptPage.cfm",
+            """
+            <div id="myHtmlDiv" class="my-html-class"></div>
+            <cfscript>
+                var myCfVar = 100;
+                <caret>
+            </cfscript>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements!!.map { it.lookupString }
+
+        assertTrue(lookupStrings.contains("myCfVar"))
+        // Inside cfscript, HTML IDs or specific classes should not be in autocomplete
+        assertFalse(lookupStrings.contains("myHtmlDiv"))
+        assertFalse(lookupStrings.contains("my-html-class"))
+    }
+
+    @Test
+    fun testCfmInsideColdFusionTagDoesNotSuggestHtmlOnlyItems()
+    {
+        myFixture.configureByText(
+            "tagPage.cfm",
+            """
+            <div id="customDivId" class="custom-class-name"></div>
+            <cfset customTagVar = "value">
+            <cfset targetVar = <caret>>
+            """.trimIndent()
+        )
+
+        val elements = myFixture.completeBasic()
+        assertNotNull(elements)
+        val lookupStrings = elements!!.map { it.lookupString }
+
+        assertTrue(lookupStrings.contains("customTagVar"))
+        // Inside <cfset ...>, HTML IDs or specific classes should not be in autocomplete
+        assertFalse(lookupStrings.contains("customDivId"))
+        assertFalse(lookupStrings.contains("custom-class-name"))
+    }
 }

@@ -129,6 +129,17 @@ class CFMLCompletionContributor : CompletionContributor()
             return
         }
 
+        val isCfm = isCfmFile(file)
+        val insideCf = isInsideCfscriptOrColdfusionTag(chars, posOffset) ||
+                isInsideCfscriptOrColdfusionTag(chars, parameters.offset)
+
+        if (isCfm && !insideCf)
+        {
+            fillHtmlAndJavaScriptVariants(chars, result)
+            fillAssignmentVariants(parameters, chars, posOffset, result)
+            return
+        }
+
         fillAssignmentVariants(parameters, chars, posOffset, result)
     }
 
@@ -244,8 +255,473 @@ class CFMLCompletionContributor : CompletionContributor()
         }
     }
 
+    private fun fillHtmlAndJavaScriptVariants(
+        chars: CharSequence,
+        result: CompletionResultSet
+    )
+    {
+        val text = chars.toString()
+        val items = extractHtmlAndJavaScriptItems(text)
+        val addedItems = mutableSetOf<String>()
+
+        for (item in items)
+        {
+            if (addedItems.add(item.lookupString))
+            {
+                var builder = LookupElementBuilder.create(item.lookupString)
+                    .withIcon(item.icon)
+                    .withTypeText(item.typeText, true)
+
+                if (item.tailText != null)
+                {
+                    builder = builder.withTailText(item.tailText, true)
+                }
+
+                if (item.hasInsertHandler)
+                {
+                    builder = builder.withInsertHandler(ParenthesesInsertHandler.getInstance(item.hasParameters))
+                }
+
+                result.addElement(PrioritizedLookupElement.withPriority(builder, item.priority))
+            }
+        }
+    }
+
+    data class HtmlJsCompletionItem(
+        val lookupString: String,
+        val typeText: String,
+        val icon: javax.swing.Icon,
+        val priority: Double = 1200.0,
+        val tailText: String? = null,
+        val hasInsertHandler: Boolean = false,
+        val hasParameters: Boolean = false
+    )
+
     companion object
     {
+
+        private val HTML_TAGS = setOf(
+            "a", "abbr", "address", "article", "aside", "audio", "b", "base", "bdi", "bdo", "blockquote",
+            "body", "br", "button", "canvas", "caption", "cite", "code", "col", "colgroup", "data",
+            "datalist", "dd", "del", "details", "dfn", "dialog", "div", "dl", "dt", "em", "embed",
+            "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6",
+            "head", "header", "hgroup", "hr", "html", "i", "iframe", "img", "input", "ins", "kbd",
+            "label", "legend", "li", "link", "main", "map", "mark", "meta", "meter", "nav", "noscript",
+            "object", "ol", "optgroup", "option", "output", "p", "picture", "pre", "progress", "q",
+            "rp", "rt", "ruby", "s", "samp", "script", "section", "select", "small", "source", "span",
+            "strong", "style", "sub", "summary", "sup", "svg", "table", "tbody", "td", "template",
+            "textarea", "tfoot", "th", "thead", "time", "title", "tr", "track", "u", "ul", "var",
+            "video", "wbr"
+        )
+
+        private val HTML_ATTRIBUTES = setOf(
+            "accept", "accept-charset", "accesskey", "action", "align", "alt", "async", "autocomplete",
+            "autofocus", "autoplay", "bgcolor", "border", "charset", "checked", "cite", "class", "cols",
+            "colspan", "content", "contenteditable", "controls", "coords", "data", "datetime", "default",
+            "defer", "dir", "dirname", "disabled", "download", "draggable", "enctype", "for", "form",
+            "formaction", "headers", "height", "hidden", "high", "href", "hreflang", "http-equiv", "id",
+            "ismap", "kind", "label", "lang", "list", "loop", "low", "max", "maxlength", "media", "method",
+            "min", "multiple", "muted", "name", "novalidate", "open", "optimum", "pattern", "placeholder",
+            "poster", "preload", "readonly", "rel", "required", "reversed", "rows", "rowspan", "sandbox",
+            "scope", "selected", "shape", "size", "sizes", "span", "spellcheck", "src", "srcdoc", "srclang",
+            "srcset", "start", "step", "style", "tabindex", "target", "title", "translate", "type",
+            "usemap", "value", "width", "wrap",
+            // Events
+            "onclick", "ondblclick", "onmousedown", "onmouseup", "onmouseover", "onmousemove", "onmouseout",
+            "onkeydown", "onkeypress", "onkeyup", "onload", "onunload", "onabort", "onerror", "onresize",
+            "onscroll", "onselect", "onchange", "onsubmit", "onreset", "onfocus", "onblur"
+        )
+
+        fun isCfmFile(file: PsiFile?): Boolean
+        {
+            if (file == null) return false
+            val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
+            val ext = vFile?.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
+            return ext == "cfm" || ext == "cfml"
+        }
+
+        fun isInsideCfscriptOrColdfusionTag(chars: CharSequence, offset: Int): Boolean
+        {
+            if (offset < 0 || offset > chars.length) return false
+            val text = chars.toString()
+
+            // 1. Check if inside <cfscript> ... </cfscript>
+            val cfscriptPattern = Pattern.compile("(?i)<cfscript\\b[^>]*>([\\s\\S]*?)(?:</cfscript>|$)")
+            val cfscriptMatcher = cfscriptPattern.matcher(text)
+            while (cfscriptMatcher.find())
+            {
+                if (offset >= cfscriptMatcher.start() && offset <= cfscriptMatcher.end())
+                {
+                    return true
+                }
+            }
+
+            // 2. Check if inside CFML comments <!--- ... --->
+            var i = 0
+            val len = text.length
+            while (i < len)
+            {
+                if (i + 4 < len && text.startsWith("<!---", i))
+                {
+                    val commentStart = i
+                    var depth = 1
+                    i += 5
+                    while (i < len && depth > 0)
+                    {
+                        if (i + 4 < len && text.startsWith("<!---", i))
+                        {
+                            depth++
+                            i += 5
+                        }
+                        else if (i + 3 < len && text.startsWith("--->", i))
+                        {
+                            depth--
+                            i += 4
+                        }
+                        else
+                        {
+                            i++
+                        }
+                    }
+                    val commentEnd = i
+                    if (offset >= commentStart && offset <= commentEnd)
+                    {
+                        return true
+                    }
+                    continue
+                }
+                i++
+            }
+
+            // 3. Check if inside any ColdFusion tag <cf... > or </cf... >
+            // Scan for tags
+            i = 0
+            while (i < len)
+            {
+                if (text[i] == '<')
+                {
+                    var cursor = i + 1
+                    var isClose = false
+                    if (cursor < len && text[cursor] == '/')
+                    {
+                        isClose = true
+                        cursor++
+                    }
+                    if (cursor + 1 < len && text.regionMatches(cursor, "cf", 0, 2, ignoreCase = true))
+                    {
+                        val tagStart = i
+                        // ColdFusion tag found, scan until closing '>' respecting quotes
+                        cursor += 2
+                        var insideSingleQuote = false
+                        var insideDoubleQuote = false
+                        var tagEnd = -1
+
+                        while (cursor < len)
+                        {
+                            val ch = text[cursor]
+                            if (ch == '\'' && !insideDoubleQuote)
+                            {
+                                insideSingleQuote = !insideSingleQuote
+                            }
+                            else if (ch == '"' && !insideSingleQuote)
+                            {
+                                insideDoubleQuote = !insideDoubleQuote
+                            }
+                            else if (ch == '>' && !insideSingleQuote && !insideDoubleQuote)
+                            {
+                                tagEnd = cursor + 1
+                                break
+                            }
+                            cursor++
+                        }
+
+                        if (tagEnd == -1)
+                        {
+                            tagEnd = len
+                        }
+
+                        if (offset >= tagStart && offset <= tagEnd)
+                        {
+                            return true
+                        }
+
+                        i = tagEnd
+                        continue
+                    }
+                }
+                i++
+            }
+
+            return false
+        }
+
+        fun extractHtmlAndJavaScriptItems(text: String): List<HtmlJsCompletionItem>
+        {
+            val items = mutableListOf<HtmlJsCompletionItem>()
+            val seen = mutableSetOf<String>()
+
+            fun addItem(item: HtmlJsCompletionItem)
+            {
+                if (seen.add(item.lookupString))
+                {
+                    items.add(item)
+                }
+            }
+
+            // 1. Extract JavaScript functions, variables, and identifiers from <script>...</script> blocks
+            val htmlScriptPattern = Pattern.compile("""(?i)<script\b([^>]*)>([\s\S]*?)</script>""")
+            val scriptMatcher = htmlScriptPattern.matcher(text)
+
+            while (scriptMatcher.find())
+            {
+                val scriptBody = scriptMatcher.group(2)
+                extractJavaScriptItemsFromBody(scriptBody, ::addItem)
+            }
+
+            // Also check inline javascript handlers in HTML tags (e.g. onclick="myFunction()")
+            val inlineJsPattern = Pattern.compile("""(?i)\bon[a-z]+\s*=\s*["']([^"']*)["']""")
+            val inlineJsMatcher = inlineJsPattern.matcher(text)
+            while (inlineJsMatcher.find())
+            {
+                val inlineCode = inlineJsMatcher.group(1)
+                extractJavaScriptItemsFromBody(inlineCode, ::addItem)
+            }
+
+            // 2. Extract HTML tags, attributes, IDs, and Classes from the HTML sections
+            extractHtmlItemsFromText(text, ::addItem)
+
+            // 3. Add standard HTML tags and attributes
+            for (tag in HTML_TAGS)
+            {
+                addItem(
+                    HtmlJsCompletionItem(
+                        lookupString = tag,
+                        typeText = "html tag",
+                        icon = AllIcons.Nodes.Tag,
+                        priority = 1100.0
+                    )
+                )
+            }
+
+            for (attr in HTML_ATTRIBUTES)
+            {
+                addItem(
+                    HtmlJsCompletionItem(
+                        lookupString = attr,
+                        typeText = "html attribute",
+                        icon = AllIcons.Nodes.Property,
+                        priority = 1050.0
+                    )
+                )
+            }
+
+            return items
+        }
+
+        private fun extractJavaScriptItemsFromBody(
+            scriptBody: String,
+            addItem: (HtmlJsCompletionItem) -> Unit
+        )
+        {
+            // JS Functions: function funcName(a, b)
+            val funcPattern = Pattern.compile("""(?i)\bfunction\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)""")
+            val funcMatcher = funcPattern.matcher(scriptBody)
+            while (funcMatcher.find())
+            {
+                val funcName = funcMatcher.group(1)
+                val paramsStr = funcMatcher.group(2).trim()
+                val hasParams = paramsStr.isNotEmpty()
+                val tailText = "($paramsStr)"
+                addItem(
+                    HtmlJsCompletionItem(
+                        lookupString = funcName,
+                        typeText = "javascript function",
+                        icon = AllIcons.Nodes.Function,
+                        priority = 1300.0,
+                        tailText = tailText,
+                        hasInsertHandler = true,
+                        hasParameters = hasParams
+                    )
+                )
+            }
+
+            // JS Arrow/assigned functions: const/let/var funcName = (...) => or function(...)
+            val assignedFuncPattern = Pattern.compile(
+                """(?i)\b(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(?:async\s*)?(?:\(([^)]*)\)|([a-zA-Z_$][a-zA-Z0-9_$]*))\s*=>"""
+            )
+            val assignedFuncMatcher = assignedFuncPattern.matcher(scriptBody)
+            while (assignedFuncMatcher.find())
+            {
+                val funcName = assignedFuncMatcher.group(1)
+                val paramsStr = (assignedFuncMatcher.group(2) ?: assignedFuncMatcher.group(3) ?: "").trim()
+                val hasParams = paramsStr.isNotEmpty()
+                val tailText = "($paramsStr)"
+                addItem(
+                    HtmlJsCompletionItem(
+                        lookupString = funcName,
+                        typeText = "javascript function",
+                        icon = AllIcons.Nodes.Function,
+                        priority = 1300.0,
+                        tailText = tailText,
+                        hasInsertHandler = true,
+                        hasParameters = hasParams
+                    )
+                )
+            }
+
+            // JS Variables: const / let / var
+            val varPattern = Pattern.compile("""(?i)\b(?:const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)""")
+            val varMatcher = varPattern.matcher(scriptBody)
+            while (varMatcher.find())
+            {
+                val varName = varMatcher.group(1)
+                addItem(
+                    HtmlJsCompletionItem(
+                        lookupString = varName,
+                        typeText = "javascript variable",
+                        icon = AllIcons.Nodes.Variable,
+                        priority = 1250.0
+                    )
+                )
+            }
+
+            // JS Object methods/properties: { myMethod(...) { ... }, propName: ... }
+            val objMethodPattern = Pattern.compile("""(?i)\b([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)\s*\{""")
+            val objMethodMatcher = objMethodPattern.matcher(scriptBody)
+            while (objMethodMatcher.find())
+            {
+                val name = objMethodMatcher.group(1)
+                if (name.lowercase() !in setOf("if", "for", "while", "switch", "catch", "function"))
+                {
+                    val paramsStr = objMethodMatcher.group(2).trim()
+                    val hasParams = paramsStr.isNotEmpty()
+                    addItem(
+                        HtmlJsCompletionItem(
+                            lookupString = name,
+                            typeText = "javascript function",
+                            icon = AllIcons.Nodes.Method,
+                            priority = 1200.0,
+                            tailText = "($paramsStr)",
+                            hasInsertHandler = true,
+                            hasParameters = hasParams
+                        )
+                    )
+                }
+            }
+
+            // Other JS identifiers from script body
+            val jsWordPattern = Pattern.compile("""\b[a-zA-Z_$][a-zA-Z0-9_$]{2,}\b""")
+            val jsWordMatcher = jsWordPattern.matcher(scriptBody)
+            val jsKeywords = setOf(
+                "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete",
+                "do", "else", "export", "extends", "finally", "for", "function", "if", "import", "in",
+                "instanceof", "new", "return", "super", "switch", "this", "throw", "try", "typeof", "var",
+                "void", "while", "with", "yield", "let", "static", "enum", "await", "async", "null",
+                "true", "false", "undefined"
+            )
+            while (jsWordMatcher.find())
+            {
+                val word = jsWordMatcher.group()
+                if (word.lowercase() !in jsKeywords)
+                {
+                    addItem(
+                        HtmlJsCompletionItem(
+                            lookupString = word,
+                            typeText = "javascript",
+                            icon = AllIcons.Nodes.Property,
+                            priority = 1150.0
+                        )
+                    )
+                }
+            }
+        }
+
+        private fun extractHtmlItemsFromText(
+            text: String,
+            addItem: (HtmlJsCompletionItem) -> Unit
+        )
+        {
+            // Extract IDs: id="myId" or id='myId'
+            val idPattern = Pattern.compile("""(?i)\bid\s*=\s*["']([^"']+)["']""")
+            val idMatcher = idPattern.matcher(text)
+            while (idMatcher.find())
+            {
+                val idVal = idMatcher.group(1).trim()
+                if (idVal.isNotEmpty())
+                {
+                    addItem(
+                        HtmlJsCompletionItem(
+                            lookupString = idVal,
+                            typeText = "html id",
+                            icon = AllIcons.Nodes.Property,
+                            priority = 1250.0
+                        )
+                    )
+                }
+            }
+
+            // Extract Classes: class="btn btn-primary" or class='foo'
+            val classPattern = Pattern.compile("""(?i)\bclass\s*=\s*["']([^"']+)["']""")
+            val classMatcher = classPattern.matcher(text)
+            while (classMatcher.find())
+            {
+                val classVal = classMatcher.group(1)
+                for (cls in classVal.split(Regex("""\s+""")))
+                {
+                    val trimmedCls = cls.trim()
+                    if (trimmedCls.isNotEmpty())
+                    {
+                        addItem(
+                            HtmlJsCompletionItem(
+                                lookupString = trimmedCls,
+                                typeText = "html class",
+                                icon = AllIcons.Nodes.Class,
+                                priority = 1250.0
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Extract HTML Tag names present in document: <tag or </tag (excluding cf tags)
+            val htmlTagPattern = Pattern.compile("""(?i)</?([a-zA-Z][a-zA-Z0-9_-]*)\b""")
+            val tagMatcher = htmlTagPattern.matcher(text)
+            while (tagMatcher.find())
+            {
+                val tagName = tagMatcher.group(1)
+                if (!tagName.startsWith("cf", ignoreCase = true))
+                {
+                    addItem(
+                        HtmlJsCompletionItem(
+                            lookupString = tagName,
+                            typeText = "html tag",
+                            icon = AllIcons.Nodes.Tag,
+                            priority = 1150.0
+                        )
+                    )
+                }
+            }
+
+            // Extract HTML Attributes present in document: attr="value" or attr='value' or attr
+            val htmlAttrPattern = Pattern.compile("""(?i)\b([a-zA-Z][a-zA-Z0-9_-]*)\s*=""")
+            val attrMatcher = htmlAttrPattern.matcher(text)
+            while (attrMatcher.find())
+            {
+                val attrName = attrMatcher.group(1)
+                if (!attrName.startsWith("cf", ignoreCase = true) &&
+                    attrName.lowercase() !in setOf("var", "let", "const", "function", "if", "while"))
+                {
+                    addItem(
+                        HtmlJsCompletionItem(
+                            lookupString = attrName,
+                            typeText = "html attribute",
+                            icon = AllIcons.Nodes.Property,
+                            priority = 1150.0
+                        )
+                    )
+                }
+            }
+        }
 
         fun findPrecedingVariable(chars: CharSequence, offset: Int): PrecedingVarInfo?
         {
