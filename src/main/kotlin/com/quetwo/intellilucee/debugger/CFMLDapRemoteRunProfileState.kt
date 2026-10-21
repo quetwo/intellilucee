@@ -7,6 +7,7 @@ import com.intellij.execution.Executor
 import com.intellij.execution.configurations.RunProfileState
 import com.intellij.execution.filters.TextConsoleBuilderFactory
 import com.intellij.execution.runners.ProgramRunner
+import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
@@ -84,6 +85,7 @@ class CFMLDapRemoteRunProfileState(
 
     companion object
     {
+        private val LOG: Logger = Logger.getInstance(CFMLDapRemoteRunProfileState::class.java)
         private const val CONNECT_TIMEOUT_MS = 5000
 
         fun escapeJson(value: String): String =
@@ -125,6 +127,7 @@ class CFMLDapRemoteRunProfileState(
 
         fun sendDapMessage(output: OutputStream, payload: String)
         {
+            LOG.debug("[LUCEE-DAP] => $payload")
             val bytes = payload.toByteArray(StandardCharsets.UTF_8)
             val header = "Content-Length: ${bytes.size}\r\n\r\n".toByteArray(StandardCharsets.US_ASCII)
             output.write(header)

@@ -3,6 +3,7 @@ package com.quetwo.intellilucee.debugger
 import com.intellij.execution.process.ProcessHandler
 import com.intellij.execution.process.ProcessOutputTypes
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Socket
@@ -12,6 +13,10 @@ class CFMLDapProcessHandler(
     val socket: Socket
 ) : ProcessHandler()
 {
+    companion object
+    {
+        private val LOG: Logger = Logger.getInstance(CFMLDapProcessHandler::class.java)
+    }
     override fun startNotify()
     {
         super.startNotify()
@@ -34,6 +39,7 @@ class CFMLDapProcessHandler(
                     break
                 }
                 val text = String(buffer, 0, bytesRead, StandardCharsets.UTF_8)
+                LOG.debug("[LUCEE-DAP] <= $text")
                 notifyTextAvailable(text, ProcessOutputTypes.STDOUT)
             }
         }
