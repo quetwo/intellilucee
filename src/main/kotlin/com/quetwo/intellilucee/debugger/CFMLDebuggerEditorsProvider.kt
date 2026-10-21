@@ -1,30 +1,23 @@
 package com.quetwo.intellilucee.debugger
 
-import com.intellij.openapi.editor.Document
-import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
-import com.intellij.xdebugger.XSourcePosition
-import com.intellij.xdebugger.evaluation.EvaluationMode
-import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
+import com.intellij.xdebugger.evaluation.XDebuggerEditorsProviderBase
 import com.quetwo.intellilucee.file.CFMLFileType
 
-@Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-class CFMLDebuggerEditorsProvider : XDebuggerEditorsProvider() {
+class CFMLDebuggerEditorsProvider : XDebuggerEditorsProviderBase() {
 
     override fun getFileType(): FileType = CFMLFileType.INSTANCE
 
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    override fun createDocument(
+    override fun createExpressionCodeFragment(
         project: Project,
         text: String,
-        sourcePosition: XSourcePosition?,
-        mode: EvaluationMode
-    ): Document {
-        val psiFile = PsiFileFactory.getInstance(project).createFileFromText("evaluation.cfm", CFMLFileType.INSTANCE, text)
-        return PsiDocumentManager.getInstance(project).getDocument(psiFile)
-            ?: EditorFactory.getInstance().createDocument(text)
+        context: PsiElement?,
+        isPhysical: Boolean
+    ): PsiFile {
+        return PsiFileFactory.getInstance(project).createFileFromText("evaluation.cfm", CFMLFileType.INSTANCE, text)
     }
 }

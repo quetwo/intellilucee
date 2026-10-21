@@ -13,7 +13,6 @@ import com.intellij.xdebugger.XDebugProcessStarter
 import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XDebuggerManager
 
-@Suppress("DEPRECATION")
 class CFMLDapDebuggerRunner : GenericProgramRunner<RunnerSettings>() {
 
     override fun getRunnerId(): String = "CFMLDapDebuggerRunner"
@@ -24,16 +23,12 @@ class CFMLDapDebuggerRunner : GenericProgramRunner<RunnerSettings>() {
 
     public override fun doExecute(state: RunProfileState, environment: ExecutionEnvironment): RunContentDescriptor? {
         val configuration = environment.runProfile as? CFMLDapRemoteConfiguration ?: return null
-        val session = XDebuggerManager.getInstance(environment.project).startSessionAndShowTab(
-            environment.runProfile.name,
-            environment.runProfile.icon,
-            environment.contentToReuse,
-            false,
+        val result = XDebuggerManager.getInstance(environment.project).newSessionBuilder(
             object : XDebugProcessStarter() {
                 override fun start(session: XDebugSession): XDebugProcess =
                     CFMLDapDebugProcess.create(session, configuration)
             }
-        )
-        return session.runContentDescriptor
+        ).environment(environment).showTab(false).startSession()
+        return result.runContentDescriptor
     }
 }
