@@ -14,11 +14,95 @@ class CFMLDapRemoteRunProfileStateTest : BasePlatformTestCase() {
 
     @Test
     fun testBuildInitializePayload() {
-        val payload = CFMLDapRemoteRunProfileState.buildInitializePayload(1, "secret123")
+        val payload = CFMLDapRemoteRunProfileState.buildInitializePayload(1)
         assertEquals(
-            """{"seq":1,"type":"request","command":"initialize","arguments":{"adapterID":"cfml","dapSecret":"secret123"}}""",
+            """{"seq":1,"type":"request","command":"initialize","arguments":{"adapterID":"cfml"}}""",
             payload
         )
+    }
+
+    @Test
+    fun testBuildAttachPayload() {
+        val payload = CFMLDapRemoteRunProfileState.buildAttachPayload(2, "my-secret")
+        assertEquals(
+            """{"seq":2,"type":"request","command":"attach","arguments":{"request":"attach","secret":"my-secret"}}""",
+            payload
+        )
+    }
+
+    @Test
+    fun testBuildAttachPayloadWithPathTransforms() {
+        val transforms = listOf(
+            PathTransform("/path/to/app", "/var/www")
+        )
+        val payload = CFMLDapRemoteRunProfileState.buildAttachPayload(2, "my-secret", transforms)
+        assertEquals(
+            """{"seq":2,"type":"request","command":"attach","arguments":{"request":"attach","secret":"my-secret","pathTransforms":[{"idePrefix":"/path/to/app","serverPrefix":"/var/www"}]}}""",
+            payload
+        )
+    }
+
+    @Test
+    fun testBuildAttachPayloadWithMultiplePathTransforms() {
+        val transforms = listOf(
+            PathTransform("/path/to/app", "/var/www"),
+            PathTransform("/path/to/lib", "/var/lib")
+        )
+        val payload = CFMLDapRemoteRunProfileState.buildAttachPayload(2, "my-secret", transforms)
+        assertEquals(
+            """{"seq":2,"type":"request","command":"attach","arguments":{"request":"attach","secret":"my-secret","pathTransforms":[{"idePrefix":"/path/to/app","serverPrefix":"/var/www"},{"idePrefix":"/path/to/lib","serverPrefix":"/var/lib"}]}}""",
+            payload
+        )
+    }
+
+    @Test
+    fun testConfigurationSerializationWithTransforms() {
+        val configType = CFMLDapRemoteConfigurationType()
+        val factory = configType.configurationFactories[0]
+        val configuration = CFMLDapRemoteConfiguration(project, factory, "Test DAP")
+        configuration.host = "192.168.1.10"
+        configuration.port = 12345
+        configuration.dapSecret = "customSecret"
+        configuration.idePrefix = "/local/path"
+        configuration.serverPrefix = "/remote/path"
+
+        val element = org.jdom.Element("configuration")
+        configuration.writeExternal(element)
+
+        val newConfiguration = CFMLDapRemoteConfiguration(project, factory, "Test DAP 2")
+        newConfiguration.readExternal(element)
+
+        assertEquals("192.168.1.10", newConfiguration.host)
+        assertEquals(12345, newConfiguration.port)
+        assertEquals("customSecret", newConfiguration.dapSecret)
+        assertEquals("/local/path", newConfiguration.idePrefix)
+        assertEquals("/remote/path", newConfiguration.serverPrefix)
+        assertEquals(listOf(PathTransform("/local/path", "/remote/path")), newConfiguration.getEffectivePathTransforms())
+    }
+
+    @Test
+    fun testSettingsEditorApplyAndReset() {
+        val configType = CFMLDapRemoteConfigurationType()
+        val factory = configType.configurationFactories[0]
+        val configuration = CFMLDapRemoteConfiguration(project, factory, "Test DAP")
+        configuration.host = "10.0.0.1"
+        configuration.port = 8888
+        configuration.dapSecret = "sec"
+        configuration.idePrefix = "/ide/path"
+        configuration.serverPrefix = "/srv/path"
+
+        val editor = CFMLDapRemoteSettingsEditor()
+        editor.resetFrom(configuration)
+
+        val newConfig = CFMLDapRemoteConfiguration(project, factory, "New DAP")
+        editor.applyTo(newConfig)
+
+        assertEquals("10.0.0.1", newConfig.host)
+        assertEquals(8888, newConfig.port)
+        assertEquals("sec", newConfig.dapSecret)
+        assertEquals("/ide/path", newConfig.idePrefix)
+        assertEquals("/srv/path", newConfig.serverPrefix)
+        assertEquals(listOf(PathTransform("/ide/path", "/srv/path")), newConfig.getEffectivePathTransforms())
     }
 
     @Test

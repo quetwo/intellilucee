@@ -18,6 +18,8 @@ class CFMLDapRemoteSettingsEditor : SettingsEditor<CFMLDapRemoteConfiguration>()
     private val hostField = JBTextField()
     private val portSpinner = JSpinner(SpinnerNumberModel(10000, 1, 65535, 1))
     private val dapSecretField = JBTextField()
+    private val idePrefixField = JBTextField()
+    private val serverPrefixField = JBTextField()
 
     init
     {
@@ -32,6 +34,9 @@ class CFMLDapRemoteSettingsEditor : SettingsEditor<CFMLDapRemoteConfiguration>()
         hostField.text = configuration.host
         portSpinner.value = configuration.port
         dapSecretField.text = configuration.dapSecret
+        val firstTransform = configuration.getEffectivePathTransforms().firstOrNull()
+        idePrefixField.text = firstTransform?.idePrefix ?: configuration.idePrefix
+        serverPrefixField.text = firstTransform?.serverPrefix ?: configuration.serverPrefix
     }
 
     override fun applyEditorTo(configuration: CFMLDapRemoteConfiguration)
@@ -39,6 +44,16 @@ class CFMLDapRemoteSettingsEditor : SettingsEditor<CFMLDapRemoteConfiguration>()
         configuration.host = hostField.text.trim()
         configuration.port = (portSpinner.value as Number).toInt()
         configuration.dapSecret = dapSecretField.text.trim()
+        configuration.idePrefix = idePrefixField.text.trim()
+        configuration.serverPrefix = serverPrefixField.text.trim()
+        if (configuration.idePrefix.isNotBlank() || configuration.serverPrefix.isNotBlank())
+        {
+            configuration.pathTransforms = listOf(PathTransform(configuration.idePrefix, configuration.serverPrefix))
+        }
+        else
+        {
+            configuration.pathTransforms = emptyList()
+        }
     }
 
     override fun createEditor(): JComponent
@@ -55,7 +70,13 @@ class CFMLDapRemoteSettingsEditor : SettingsEditor<CFMLDapRemoteConfiguration>()
         panel.add(JLabel("DAP Secret:"), GridBagConstraints(0, 2, 1, 1, 0.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, insets, 0, 0))
         panel.add(dapSecretField, GridBagConstraints(1, 2, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, insets, 0, 0))
 
-        panel.add(JPanel(), GridBagConstraints(0, 3, 2, 1, 1.0, 1.0, GridBagConstraints.CENTER, GridBagConstraints.BOTH, insets, 0, 0))
+        panel.add(JLabel("IDE Prefix:"), GridBagConstraints(0, 3, 1, 1, 0.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, insets, 0, 0))
+        panel.add(idePrefixField, GridBagConstraints(1, 3, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, insets, 0, 0))
+
+        panel.add(JLabel("Server Prefix:"), GridBagConstraints(0, 4, 1, 1, 0.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, insets, 0, 0))
+        panel.add(serverPrefixField, GridBagConstraints(1, 4, 1, 1, 1.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.HORIZONTAL, insets, 0, 0))
+
+        panel.add(JPanel(), GridBagConstraints(0, 5, 2, 1, 1.0, 1.0, GridBagConstraints.CENTER, GridBagConstraints.BOTH, insets, 0, 0))
         return panel
     }
 }

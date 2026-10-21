@@ -1,7 +1,6 @@
 package com.quetwo.intellilucee.debugger
 
 import com.intellij.execution.executors.DefaultDebugExecutor
-import com.intellij.execution.runners.ExecutionEnvironmentBuilder
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.XDebuggerUtil
@@ -20,7 +19,7 @@ import java.util.concurrent.TimeUnit
 class CFMLDapRemoteExecutionTest : BasePlatformTestCase() {
 
     @Test
-    fun testExecuteCommunicatesBreakpointsToDapServer() {
+    fun testExecuteCommunicatesBreakpointsToDapServerAndKeepsConnectionAlive() {
         val psiFile = myFixture.configureByText("index.cfm", "<cfset x = 1>\n<cfset y = 2>\n<cfset z = 3>\n")
         val virtualFile = psiFile.virtualFile
 
@@ -46,7 +45,7 @@ class CFMLDapRemoteExecutionTest : BasePlatformTestCase() {
                 val input = client.getInputStream()
 
                 val reader = BufferedReader(InputStreamReader(input, StandardCharsets.US_ASCII))
-                while (true) {
+                while (messages.size < 3) {
                     val line = reader.readLine() ?: break
                     if (line.startsWith("Content-Length:")) {
                         val length = line.substringAfter("Content-Length:").trim().toInt()
@@ -73,6 +72,8 @@ class CFMLDapRemoteExecutionTest : BasePlatformTestCase() {
         configuration.host = "127.0.0.1"
         configuration.port = port
         configuration.dapSecret = "testSecret"
+        configuration.idePrefix = "/path/to/app"
+        configuration.serverPrefix = "/var/www"
 
         val state = CFMLDapRemoteRunProfileState(configuration)
         val dummyRunner = object : com.intellij.execution.runners.ProgramRunner<com.intellij.execution.configurations.RunnerSettings> {
@@ -80,20 +81,37 @@ class CFMLDapRemoteExecutionTest : BasePlatformTestCase() {
             override fun canRun(executorId: String, profile: com.intellij.execution.configurations.RunProfile): Boolean = true
             override fun execute(environment: com.intellij.execution.runners.ExecutionEnvironment) {}
         }
-        state.execute(DefaultDebugExecutor.getDebugExecutorInstance(), dummyRunner)
+        val executionResult = state.execute(DefaultDebugExecutor.getDebugExecutorInstance(), dummyRunner)
+        assertNotNull(executionResult)
+
+        val processHandler = executionResult?.processHandler as? CFMLDapProcessHandler
+        assertNotNull(processHandler)
+        assertTrue(processHandler!!.socket.isConnected)
+        assertFalse(processHandler.socket.isClosed)
 
         val receivedMessages = receivedMessagesFuture.get(10, TimeUnit.SECONDS)
         executor.shutdown()
 
-        assertEquals(2, receivedMessages.size)
+        assertEquals(3, receivedMessages.size)
         // Message 1: initialize
         assertTrue(receivedMessages[0].contains("\"command\":\"initialize\""))
-        assertTrue(receivedMessages[0].contains("\"dapSecret\":\"testSecret\""))
+        assertTrue(receivedMessages[0].contains("\"adapterID\":\"cfml\""))
 
-        // Message 2: setBreakpoints
-        assertTrue(receivedMessages[1].contains("\"command\":\"setBreakpoints\""))
-        assertTrue(receivedMessages[1].contains("\"lines\":[1,3]"))
-        assertTrue(receivedMessages[1].contains("\"line\":1"))
-        assertTrue(receivedMessages[1].contains("\"line\":3"))
+        // Message 2: attach
+        assertTrue(receivedMessages[1].contains("\"command\":\"attach\""))
+        assertTrue(receivedMessages[1].contains("\"request\":\"attach\""))
+        assertTrue(receivedMessages[1].contains("\"secret\":\"testSecret\""))
+        assertTrue(receivedMessages[1].contains("\"pathTransforms\":[{\"idePrefix\":\"/path/to/app\",\"serverPrefix\":\"/var/www\"}]"))
+
+        // Message 3: setBreakpoints
+        assertTrue(receivedMessages[2].contains("\"command\":\"setBreakpoints\""))
+        assertTrue(receivedMessages[2].contains("\"lines\":[1,3]"))
+        assertTrue(receivedMessages[2].contains("\"line\":1"))
+        assertTrue(receivedMessages[2].contains("\"line\":3"))
+
+        // Verify destroying process disconnects the socket
+        processHandler.destroyProcess()
+        assertTrue(processHandler.isProcessTerminating || processHandler.isProcessTerminated)
+        assertTrue(processHandler.socket.isClosed)
     }
 }
