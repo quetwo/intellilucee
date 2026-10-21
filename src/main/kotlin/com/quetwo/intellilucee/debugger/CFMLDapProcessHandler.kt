@@ -9,19 +9,53 @@ import java.io.OutputStream
 import java.net.Socket
 import java.nio.charset.StandardCharsets
 
-class CFMLDapProcessHandler(
-    val socket: Socket
+class CFMLDapProcessHandler @JvmOverloads constructor(
+    val socket: Socket,
+    val dapClient: CFMLDapClient? = null
 ) : ProcessHandler()
 {
     companion object
     {
         private val LOG: Logger = Logger.getInstance(CFMLDapProcessHandler::class.java)
     }
+
+    init
+    {
+        dapClient?.let { client ->
+            client.onOutput = { outputEvent ->
+                val outputType = when (outputEvent.category?.lowercase()) {
+                    "stderr" -> ProcessOutputTypes.STDERR
+                    "system" -> ProcessOutputTypes.SYSTEM
+                    else -> ProcessOutputTypes.STDOUT
+                }
+                notifyTextAvailable(outputEvent.output, outputType)
+            }
+            client.onRawOutput = { text ->
+                notifyTextAvailable(text, ProcessOutputTypes.STDOUT)
+            }
+            client.onTerminated = {
+                if (!isProcessTerminated && !isProcessTerminating)
+                {
+                    closeSocket()
+                    notifyProcessTerminated(0)
+                }
+            }
+        }
+    }
+
     override fun startNotify()
     {
+        if (isStartNotified) return
         super.startNotify()
-        ApplicationManager.getApplication().executeOnPooledThread {
-            listenToSocket()
+        if (dapClient != null)
+        {
+            dapClient.startListening()
+        }
+        else
+        {
+            ApplicationManager.getApplication().executeOnPooledThread {
+                listenToSocket()
+            }
         }
     }
 
@@ -61,6 +95,7 @@ class CFMLDapProcessHandler(
     {
         try
         {
+            dapClient?.close()
             if (!socket.isClosed)
             {
                 socket.close()
