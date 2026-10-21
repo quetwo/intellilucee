@@ -35,7 +35,7 @@ class CFMLDapRemoteConfiguration(project: Project, factory: ConfigurationFactory
         return emptyList()
     }
 
-    override fun getConfigurationEditor(): SettingsEditor<out RunConfigurationBase<*>> = CFMLDapRemoteSettingsEditor()
+    override fun getConfigurationEditor(): SettingsEditor<out RunConfigurationBase<*>> = CFMLDapRemoteSettingsEditor(project)
 
     @Throws(RuntimeConfigurationError::class)
     override fun checkConfiguration()

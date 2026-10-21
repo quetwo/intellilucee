@@ -88,10 +88,13 @@ class CFMLDapRemoteRunProfileStateTest : BasePlatformTestCase() {
         configuration.host = "10.0.0.1"
         configuration.port = 8888
         configuration.dapSecret = "sec"
-        configuration.idePrefix = "/ide/path"
-        configuration.serverPrefix = "/srv/path"
+        configuration.pathTransforms = listOf(
+            PathTransform("/ide/path1", "/srv/path1"),
+            PathTransform("/ide/path2", "/srv/path2")
+        )
 
-        val editor = CFMLDapRemoteSettingsEditor()
+        val editor = CFMLDapRemoteSettingsEditor(project)
+        val panel = editor.component // ensure UI component initialized
         editor.resetFrom(configuration)
 
         val newConfig = CFMLDapRemoteConfiguration(project, factory, "New DAP")
@@ -100,9 +103,15 @@ class CFMLDapRemoteRunProfileStateTest : BasePlatformTestCase() {
         assertEquals("10.0.0.1", newConfig.host)
         assertEquals(8888, newConfig.port)
         assertEquals("sec", newConfig.dapSecret)
-        assertEquals("/ide/path", newConfig.idePrefix)
-        assertEquals("/srv/path", newConfig.serverPrefix)
-        assertEquals(listOf(PathTransform("/ide/path", "/srv/path")), newConfig.getEffectivePathTransforms())
+        assertEquals("/ide/path1", newConfig.idePrefix)
+        assertEquals("/srv/path1", newConfig.serverPrefix)
+        assertEquals(
+            listOf(
+                PathTransform("/ide/path1", "/srv/path1"),
+                PathTransform("/ide/path2", "/srv/path2")
+            ),
+            newConfig.getEffectivePathTransforms()
+        )
     }
 
     @Test
