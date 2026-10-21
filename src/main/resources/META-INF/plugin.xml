@@ -153,6 +153,7 @@
         <!-- Support for the Debugger Configuration -->
         <configurationType implementation="com.quetwo.intellilucee.debugger.CFMLDapRemoteConfigurationType"/>
         <xdebugger.breakpointType implementation="com.quetwo.intellilucee.debugger.CFMLLineBreakpointType"/>
+        <programRunner implementation="com.quetwo.intellilucee.debugger.CFMLDapDebuggerRunner"/>
 
         <!-- Project Wizard support -->
         <directoryProjectGenerator implementation="com.quetwo.intellilucee.project.CFMLProjectGenerator"/>

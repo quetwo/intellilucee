@@ -2,6 +2,7 @@ package com.quetwo.intellilucee.debugger
 
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.breakpoints.XLineBreakpointType
 import com.quetwo.intellilucee.lsp.CFMLLspClientDescriptor
 
@@ -15,4 +16,9 @@ class CFMLLineBreakpointType : XLineBreakpointType<CFMLLineBreakpointProperties>
 
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean =
         CFMLLspClientDescriptor.isSupportedExtension(file.extension)
+
+    override fun variantAndBreakpointMatch(
+        breakpoint: XLineBreakpoint<CFMLLineBreakpointProperties>,
+        variant: XLineBreakpointVariant
+    ): Boolean = true
 }
