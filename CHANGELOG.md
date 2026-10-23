@@ -8,6 +8,7 @@
 - The CFML language server is now clif (formerly cfmleditor-lsp), downloaded from `cfmleditor/clif`. The `clif` archive is tried first and the `cfmleditor-lsp` one after it, so a pinned release from before the rename still installs, and an executable already downloaded under either name is still used.
 
 ### Added
+- Fixed project creating wizard to have code for the proxy, and cleaned up code generation for the CFML side.
 - Debugger panel UI displayed to the user in the IDE immediately upon connecting to the DAP server.
 - Path mapping datagrid table in DAP server profile settings supporting multiple path mappings and local directory selection via folder chooser.
 - Debug logging at DEBUG level to `idea.log` for all data sent to and received from the DAP server.

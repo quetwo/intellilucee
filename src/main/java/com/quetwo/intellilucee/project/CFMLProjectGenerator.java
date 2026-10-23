@@ -131,6 +131,28 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
 
     private static @NotNull String indexCfm(@NotNull Settings settings)
     {
+        if (settings.includeDatabase)
+        {
+            return """
+                    <cfquery name="testDate">
+                        SELECT now() as NowDate
+                    </cfquery>
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>%s</title>
+                    </head>
+                    <body>
+                        <cfoutput>
+                            <h1>Welcome to %s</h1>
+                            <p>Running on #server.coldfusion.productname# version #server.lucee.version#</p>
+                            <p>The database is working, and the reported time is : #TimeFormat(testDate.NowDate,"long")#</p>
+                        </cfoutput>
+                    </body>
+                    </html>
+                    """.formatted(settings.appName, settings.appName);
+        }
         return """
                 <!DOCTYPE html>
                 <html lang="en">
