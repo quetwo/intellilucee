@@ -91,7 +91,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                         VirtualFile proxy = VfsUtil.createDirectoryIfMissing(baseDir, "proxy");
                         if (proxy != null)
                         {
-                            writeFile(proxy, "config.toml", "");
+                            writeFile(proxy, "config.toml", proxyConfigToml());
                         }
                     }
                 }
@@ -370,6 +370,137 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         builder.append("LUCEE_ADMIN_ENABLES=true\n");
         builder.append("LUCEE_ADMIN_PASSWORD=").append(QuickRandom.generateString(8));
         return  builder.toString();
+    }
+
+    private static @NotNull String proxyConfigToml()
+    {
+        return """
+                ################################################################
+                #
+                # Configuration of Proxy Application for Traefik 
+                #
+                ################################################################
+                ################################################################
+                # Global configuration
+                ################################################################
+                [global]
+                checkNewVersion = true
+                sendAnonymousUsage = true
+                ################################################################
+                # Entrypoints configuration
+                ################################################################
+                # Entrypoints definition
+                #
+                # Optional
+                # Default:
+                [entryPoints]
+                [entryPoints.web]
+                address = ":80"
+                [entryPoints.web.http]
+                [entryPoints.web.http.redirections]
+                [entryPoints.web.http.redirections.entryPoint]
+                to = "websecure"
+                scheme = "https"
+                [entryPoints.websecure]
+                address = ":443"
+                ################################################################
+                # Traefik logs configuration
+                ################################################################
+                # Traefik logs
+                # Enabled by default and log to stdout
+                #
+                # Optional
+                #
+                [log]
+                # Log level
+                #
+                # Optional
+                # Default: "ERROR"
+                #
+                level = "ERROR"
+                # Sets the filepath for the traefik log. If not specified, stdout will be used.
+                # Intermediate directories are created if necessary.
+                #
+                # Optional
+                # Default: os.Stdout
+                #
+                # Format is either "json" or "common".
+                #
+                # Optional
+                # Default: "common"
+                #
+                format = "common"
+                ################################################################
+                # Access logs configuration
+                ################################################################
+                # Enable access logs
+                # By default it will write to stdout and produce logs in the textual
+                # Common Log Format (CLF), extended with additional fields.
+                #
+                # Optional
+                #
+                [accessLog]
+                # Sets the file path for the access log. If not specified, stdout will be used.
+                # Intermediate directories are created if necessary.
+                #
+                # Optional
+                # Default: os.Stdout
+                #
+                # Format is either "json" or "common".
+                #
+                # Optional
+                # Default: "common"
+                #
+                format = "common"
+                ################################################################
+                # API and dashboard configuration
+                ################################################################
+                # Enable API and dashboard
+                [api]
+                # Enable the API in insecure mode
+                #
+                # Optional
+                # Default: false
+                #
+                insecure = false
+                # Enabled Dashboard
+                #
+                # Optional
+                # Default: true
+                #
+                dashboard = false
+                ################################################################
+                # Docker configuration backend
+                ################################################################
+                # Enable Docker configuration backend
+                [providers.docker]
+                # Docker server endpoint. Can be a tcp or a unix socket endpoint.
+                #
+                # Required
+                # Default: "unix:///var/run/docker.sock"
+                #
+                # endpoint = "tcp://10.10.10.10:2375"
+                # Default host rule.
+                #
+                # Optional
+                # Default: "Host(`{{ normalize .Name }}`)"
+                #
+                # defaultRule = "Host(`{{ normalize .Name }}.localhost`)"
+                defaultRule = "PathPrefix(`/`)"
+                # Expose containers by default in traefik
+                #
+                # Optional
+                # Default: true
+                #
+                exposedByDefault = false
+                [certificatesResolvers.myresolver.acme]
+                email = "user@host.com"
+                storage = "/shared/certs/acme.json"
+                caServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+                [certificatesResolvers.myresolver.acme.httpChallenge]
+                # used during the challenge
+                entryPoint = "web"
+                """;
     }
 
     private static @NotNull String databaseImage(@NotNull String databaseType)
