@@ -103,10 +103,12 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
         val indexFile = webrootDir!!.findChild("index.cfm")
         assertNotNull("Expected index.cfm to be created", indexFile)
         val indexContent = String(indexFile!!.contentsToByteArray())
+        assertFalse(indexContent.contains("<cfquery"))
+        assertFalse(indexContent.contains("The database is working"))
         assertTrue(indexContent.contains("<title>my-custom-app</title>"))
         assertTrue(indexContent.contains("<cfoutput>"))
-        assertTrue(indexContent.contains("#server.productname#"))
-        assertTrue(indexContent.contains("#server.productversion#"))
+        assertTrue(indexContent.contains("#server.coldfusion.productname#"))
+        assertTrue(indexContent.contains("#server.lucee.version#"))
         assertTrue(indexContent.contains("</cfoutput>"))
 
         val appFile = webrootDir.findChild("Application.cfc")
@@ -189,7 +191,20 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
 
         val webrootDir = rootDir.findChild("frontend")?.findChild("webroot")
         assertNotNull("Expected frontend/webroot directory to exist", webrootDir)
-        val appFile = webrootDir!!.findChild("Application.cfc")
+        val indexFile = webrootDir!!.findChild("index.cfm")
+        assertNotNull("Expected index.cfm to be created", indexFile)
+        val indexContent = String(indexFile!!.contentsToByteArray())
+        assertTrue(indexContent.contains("<cfquery name=\"testDate\">"))
+        assertTrue(indexContent.contains("SELECT now() as NowDate"))
+        assertTrue(indexContent.contains("</cfquery>"))
+        assertTrue(indexContent.contains("<title>my-full-app</title>"))
+        assertTrue(indexContent.contains("<cfoutput>"))
+        assertTrue(indexContent.contains("#server.coldfusion.productname#"))
+        assertTrue(indexContent.contains("#server.lucee.version#"))
+        assertTrue(indexContent.contains("<p>The database is working, and the reported time is : #TimeFormat(testDate.NowDate,\"long\")#</p>"))
+        assertTrue(indexContent.contains("</cfoutput>"))
+
+        val appFile = webrootDir.findChild("Application.cfc")
         assertNotNull("Expected Application.cfc to be created", appFile)
         val appContent = String(appFile!!.contentsToByteArray())
         assertTrue(appContent.contains("component {"))
@@ -197,7 +212,8 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
         assertTrue(appContent.contains("this.sessionManagement = true;"))
         assertTrue(appContent.contains("this.sessionTimeout = createTimeSpan(0, 0, 30, 0);"))
         assertTrue(appContent.contains("this.applicationTimeout = createTimeSpan(0, 12, 0, 0);"))
-        assertTrue(appContent.contains("this.datasource = {class: 'org.postgresql.Driver'"))
+        assertTrue(appContent.contains("this.datasource ="))
+        assertTrue(appContent.contains("class: 'org.postgresql.Driver'"))
         assertTrue(appContent.contains("bundleName: 'org.postgresql.jdbc'"))
         assertTrue(appContent.contains("connectionString: 'jdbc:postgresql://db:5432/' & server.system.environment.POSTGRES_DB"))
         assertTrue(appContent.contains("username: server.system.environment.POSTGRES_USER"))
@@ -282,10 +298,80 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
         val appContent = String(appFile!!.contentsToByteArray())
         assertTrue(appContent.contains("component {"))
         assertTrue(appContent.contains("this.name = \"mssql-app\";"))
-        assertTrue(appContent.contains("this.datasource = {class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'"))
+        assertTrue(appContent.contains("this.datasource ="))
+        assertTrue(appContent.contains("class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'"))
         assertTrue(appContent.contains("bundleName: 'com.microsoft.sqlserver.mssql-jdbc'"))
         assertTrue(appContent.contains("connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'"))
         assertTrue(appContent.contains("username: 'sa'"))
         assertTrue(appContent.contains("password: server.system.environment.MSSQL_SA_PASSWORD"))
+    }
+
+    @Test
+    fun testGenerateProjectDockerComposeWithoutProxy()
+    {
+        val rootDir = myFixture.tempDirFixture.findOrCreateDir("proj_docker_no_proxy")
+        val settings = CFMLProjectGenerator.Settings(
+            "no-proxy-app",
+            "7.0.x",
+            true,
+            false,
+            "MySQL",
+            false,
+            "no-proxy-app.local"
+        )
+
+        generator.generateProject(project, rootDir, settings, null)
+
+        val dockerComposeFile = rootDir.findChild("docker-compose.yml")
+        assertNotNull("Expected docker-compose.yml to be created", dockerComposeFile)
+
+        val content = String(dockerComposeFile!!.contentsToByteArray())
+        assertFalse(content.contains("dockerfile:"))
+        assertTrue(content.contains("context: frontend/"))
+        assertTrue(content.contains("volumes:\n      - ./frontend/webroot:/var/www"))
+        assertTrue(content.contains("\"8888:8888\""))
+        assertFalse(content.contains("traefik.enable=true"))
+    }
+
+    @Test
+    fun testGenerateProjectDockerComposeWithProxy()
+    {
+        val rootDir = myFixture.tempDirFixture.findOrCreateDir("proj_docker_with_proxy")
+        val settings = CFMLProjectGenerator.Settings(
+            "proxy-app",
+            "7.0.x",
+            true,
+            false,
+            "MySQL",
+            true,
+            "proxy-app.local"
+        )
+
+        generator.generateProject(project, rootDir, settings, null)
+
+        val dockerComposeFile = rootDir.findChild("docker-compose.yml")
+        assertNotNull("Expected docker-compose.yml to be created", dockerComposeFile)
+
+        val content = String(dockerComposeFile!!.contentsToByteArray())
+        assertFalse(content.contains("dockerfile:"))
+        assertTrue(content.contains("context: frontend/"))
+        assertTrue(content.contains("volumes:\n      - ./frontend/webroot:/var/www"))
+        assertTrue(content.contains("labels:"))
+        assertTrue(content.contains("\"traefik.enable=true\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontend.entrypoints=web\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.entrypoints=websecure\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.tls=true\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.tls.certresolver=myresolver\""))
+        assertTrue(content.contains("\"traefik.http.services.web.loadbalancer.server.port=8888\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.tls.domains[0].main=proxy-app.local\""))
+
+        val proxyConfigFile = rootDir.findChild("proxy")?.findChild("config.toml")
+        assertNotNull("Expected proxy/config.toml to be created", proxyConfigFile)
+        val tomlContent = String(proxyConfigFile!!.contentsToByteArray())
+        assertTrue(tomlContent.contains("[entryPoints.web]"))
+        assertTrue(tomlContent.contains("[entryPoints.websecure]"))
+        assertTrue(tomlContent.contains("[certificatesResolvers.myresolver.acme]"))
+        assertTrue(tomlContent.contains("storage = \"/shared/certs/acme.json\""))
+        assertTrue(tomlContent.contains("[providers.docker]"))
     }
 }

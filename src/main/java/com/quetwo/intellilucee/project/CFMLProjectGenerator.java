@@ -91,7 +91,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                         VirtualFile proxy = VfsUtil.createDirectoryIfMissing(baseDir, "proxy");
                         if (proxy != null)
                         {
-                            writeFile(proxy, "config.toml", "");
+                            writeFile(proxy, "config.toml", proxyConfigToml());
                         }
                     }
                 }
@@ -131,6 +131,28 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
 
     private static @NotNull String indexCfm(@NotNull Settings settings)
     {
+        if (settings.includeDatabase)
+        {
+            return """
+                    <cfquery name="testDate">
+                        SELECT now() as NowDate
+                    </cfquery>
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                        <meta charset="UTF-8">
+                        <title>%s</title>
+                    </head>
+                    <body>
+                        <cfoutput>
+                            <h1>Welcome to %s</h1>
+                            <p>Running on #server.coldfusion.productname# version #server.lucee.version#</p>
+                            <p>The database is working, and the reported time is : #TimeFormat(testDate.NowDate,"long")#</p>
+                        </cfoutput>
+                    </body>
+                    </html>
+                    """.formatted(settings.appName, settings.appName);
+        }
         return """
                 <!DOCTYPE html>
                 <html lang="en">
@@ -141,7 +163,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 <body>
                     <cfoutput>
                         <h1>Welcome to %s</h1>
-                        <p>Running on #server.productname# version #server.productversion#</p>
+                        <p>Running on #server.coldfusion.productname# version #server.lucee.version#</p>
                     </cfoutput>
                 </body>
                 </html>
@@ -161,13 +183,13 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             switch (settings.databaseType)
             {
                 case "MySQL": case "MariaDB": case "mysql": case "mariadb":
-                    builder.append("    this.datasource = {class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
+                    builder.append("    this.datasource = \n{\n    class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false}\n}\n");
                     break;
                 case "Postgres": case "postgres": case "PostgreSQL": case "postgresql":
-                    builder.append("    this.datasource = {class: 'org.postgresql.Driver'\n      , bundleName: 'org.postgresql.jdbc'\n      , bundleVersion: '42.7.4'\n      , connectionString: 'jdbc:postgresql://db:5432/' & server.system.environment.POSTGRES_DB\n      , username: server.system.environment.POSTGRES_USER\n      , password: server.system.environment.POSTGRES_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
+                    builder.append("    this.datasource = \n{\n    class: 'org.postgresql.Driver'\n      , bundleName: 'org.postgresql.jdbc'\n      , bundleVersion: '42.7.4'\n      , connectionString: 'jdbc:postgresql://db:5432/' & server.system.environment.POSTGRES_DB\n      , username: server.system.environment.POSTGRES_USER\n      , password: server.system.environment.POSTGRES_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false;\n}\n");
                     break;
                 case "MSSQL": case "mssql":
-                    builder.append("    this.datasource = {class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'\n      , bundleName: 'com.microsoft.sqlserver.mssql-jdbc'\n      , bundleVersion: '12.8.1.jre11'\n      , connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'\n      , username: 'sa'\n      , password: server.system.environment.MSSQL_SA_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
+                    builder.append("    this.datasource = \n{\n    class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'\n      , bundleName: 'com.microsoft.sqlserver.mssql-jdbc'\n      , bundleVersion: '12.8.1.jre11'\n      , connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'\n      , username: 'sa'\n      , password: server.system.environment.MSSQL_SA_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false;\n}\n");
                     break;
             }
         }
@@ -270,8 +292,9 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         builder.append("  frontend:\n");
         builder.append("    build:\n");
         builder.append("      context: frontend/\n");
-        builder.append("      dockerfile: ./frontend/Dockerfile\n");
         builder.append("    container_name: ").append(settings.appName).append("\n");
+        builder.append("    volumes:\n");
+        builder.append("      - ./frontend/webroot:/var/www\n");
         builder.append("    env_file:\n");
         builder.append("      - ./frontend/secrets.txt\n");
         if (settings.includeDatabase)
@@ -282,6 +305,17 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         {
             builder.append("    ports:\n");
             builder.append("      - \"8888:8888\"\n");
+        }
+        if (settings.includeReverseProxy)
+        {
+            builder.append("    labels:\n");
+            builder.append("      - \"traefik.enable=true\"\n");
+            builder.append("      - \"traefik.http.routers.frontend.entrypoints=web\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.entrypoints=websecure\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.tls=true\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.tls.certresolver=myresolver\"\n");
+            builder.append("      - \"traefik.http.services.web.loadbalancer.server.port=8888\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.tls.domains[0].main=").append(settings.domainName).append("\"\n");
         }
 
         if (settings.includeDatabase)
@@ -358,6 +392,137 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         builder.append("LUCEE_ADMIN_ENABLES=true\n");
         builder.append("LUCEE_ADMIN_PASSWORD=").append(QuickRandom.generateString(8));
         return  builder.toString();
+    }
+
+    private static @NotNull String proxyConfigToml()
+    {
+        return """
+                ################################################################
+                #
+                # Configuration of Proxy Application for Traefik 
+                #
+                ################################################################
+                ################################################################
+                # Global configuration
+                ################################################################
+                [global]
+                checkNewVersion = true
+                sendAnonymousUsage = true
+                ################################################################
+                # Entrypoints configuration
+                ################################################################
+                # Entrypoints definition
+                #
+                # Optional
+                # Default:
+                [entryPoints]
+                [entryPoints.web]
+                address = ":80"
+                [entryPoints.web.http]
+                [entryPoints.web.http.redirections]
+                [entryPoints.web.http.redirections.entryPoint]
+                to = "websecure"
+                scheme = "https"
+                [entryPoints.websecure]
+                address = ":443"
+                ################################################################
+                # Traefik logs configuration
+                ################################################################
+                # Traefik logs
+                # Enabled by default and log to stdout
+                #
+                # Optional
+                #
+                [log]
+                # Log level
+                #
+                # Optional
+                # Default: "ERROR"
+                #
+                level = "ERROR"
+                # Sets the filepath for the traefik log. If not specified, stdout will be used.
+                # Intermediate directories are created if necessary.
+                #
+                # Optional
+                # Default: os.Stdout
+                #
+                # Format is either "json" or "common".
+                #
+                # Optional
+                # Default: "common"
+                #
+                format = "common"
+                ################################################################
+                # Access logs configuration
+                ################################################################
+                # Enable access logs
+                # By default it will write to stdout and produce logs in the textual
+                # Common Log Format (CLF), extended with additional fields.
+                #
+                # Optional
+                #
+                [accessLog]
+                # Sets the file path for the access log. If not specified, stdout will be used.
+                # Intermediate directories are created if necessary.
+                #
+                # Optional
+                # Default: os.Stdout
+                #
+                # Format is either "json" or "common".
+                #
+                # Optional
+                # Default: "common"
+                #
+                format = "common"
+                ################################################################
+                # API and dashboard configuration
+                ################################################################
+                # Enable API and dashboard
+                [api]
+                # Enable the API in insecure mode
+                #
+                # Optional
+                # Default: false
+                #
+                insecure = false
+                # Enabled Dashboard
+                #
+                # Optional
+                # Default: true
+                #
+                dashboard = false
+                ################################################################
+                # Docker configuration backend
+                ################################################################
+                # Enable Docker configuration backend
+                [providers.docker]
+                # Docker server endpoint. Can be a tcp or a unix socket endpoint.
+                #
+                # Required
+                # Default: "unix:///var/run/docker.sock"
+                #
+                # endpoint = "tcp://10.10.10.10:2375"
+                # Default host rule.
+                #
+                # Optional
+                # Default: "Host(`{{ normalize .Name }}`)"
+                #
+                # defaultRule = "Host(`{{ normalize .Name }}.localhost`)"
+                defaultRule = "PathPrefix(`/`)"
+                # Expose containers by default in traefik
+                #
+                # Optional
+                # Default: true
+                #
+                exposedByDefault = false
+                [certificatesResolvers.myresolver.acme]
+                email = "user@host.com"
+                storage = "/shared/certs/acme.json"
+                caServer = "https://acme-staging-v02.api.letsencrypt.org/directory"
+                [certificatesResolvers.myresolver.acme.httpChallenge]
+                # used during the challenge
+                entryPoint = "web"
+                """;
     }
 
     private static @NotNull String databaseImage(@NotNull String databaseType)
