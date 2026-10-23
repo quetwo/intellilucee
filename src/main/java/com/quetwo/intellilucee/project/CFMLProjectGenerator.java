@@ -141,7 +141,7 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
                 <body>
                     <cfoutput>
                         <h1>Welcome to %s</h1>
-                        <p>Running on #server.productname# version #server.productversion#</p>
+                        <p>Running on #server.coldfusion.productname# version #server.lucee.version#</p>
                     </cfoutput>
                 </body>
                 </html>
@@ -161,13 +161,13 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
             switch (settings.databaseType)
             {
                 case "MySQL": case "MariaDB": case "mysql": case "mariadb":
-                    builder.append("    this.datasource = {class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
+                    builder.append("    this.datasource = \n{\n    class: 'com.mysql.cj.jdbc.Driver'\n      , bundleName: 'com.mysql.cj'\n      , bundleVersion: '9.6.0'\n      , connectionString: 'jdbc:mysql://db:3306/' & server.system.environment.MYSQL_DATABASE & '?characterEncoding=UTF-8&serverTimezone=Etc/UTC&autoReconnect=true&maxReconnects=3&allowMultiQueries=true'\n      , username: server.system.environment.MYSQL_USER\n      , password: server.system.environment.MYSQL_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false}\n}\n");
                     break;
                 case "Postgres": case "postgres": case "PostgreSQL": case "postgresql":
-                    builder.append("    this.datasource = {class: 'org.postgresql.Driver'\n      , bundleName: 'org.postgresql.jdbc'\n      , bundleVersion: '42.7.4'\n      , connectionString: 'jdbc:postgresql://db:5432/' & server.system.environment.POSTGRES_DB\n      , username: server.system.environment.POSTGRES_USER\n      , password: server.system.environment.POSTGRES_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
+                    builder.append("    this.datasource = \n{\n    class: 'org.postgresql.Driver'\n      , bundleName: 'org.postgresql.jdbc'\n      , bundleVersion: '42.7.4'\n      , connectionString: 'jdbc:postgresql://db:5432/' & server.system.environment.POSTGRES_DB\n      , username: server.system.environment.POSTGRES_USER\n      , password: server.system.environment.POSTGRES_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false;\n}\n");
                     break;
                 case "MSSQL": case "mssql":
-                    builder.append("    this.datasource = {class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'\n      , bundleName: 'com.microsoft.sqlserver.mssql-jdbc'\n      , bundleVersion: '12.8.1.jre11'\n      , connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'\n      , username: 'sa'\n      , password: server.system.environment.MSSQL_SA_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false};\n");
+                    builder.append("    this.datasource = \n{\n    class: 'com.microsoft.sqlserver.jdbc.SQLServerDriver'\n      , bundleName: 'com.microsoft.sqlserver.mssql-jdbc'\n      , bundleVersion: '12.8.1.jre11'\n      , connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'\n      , username: 'sa'\n      , password: server.system.environment.MSSQL_SA_PASSWORD\n      , connectionLimit:100 // default:-1\n      , alwaysSetTimeout:true // default: false\n      , validate:false // default: false;\n}\n");
                     break;
             }
         }
@@ -270,8 +270,9 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         builder.append("  frontend:\n");
         builder.append("    build:\n");
         builder.append("      context: frontend/\n");
-        builder.append("      dockerfile: ./frontend/Dockerfile\n");
         builder.append("    container_name: ").append(settings.appName).append("\n");
+        builder.append("    volumes:\n");
+        builder.append("      - ./frontend/webroot:/var/www\n");
         builder.append("    env_file:\n");
         builder.append("      - ./frontend/secrets.txt\n");
         if (settings.includeDatabase)
@@ -282,6 +283,17 @@ public final class CFMLProjectGenerator implements DirectoryProjectGenerator<CFM
         {
             builder.append("    ports:\n");
             builder.append("      - \"8888:8888\"\n");
+        }
+        if (settings.includeReverseProxy)
+        {
+            builder.append("    labels:\n");
+            builder.append("      - \"traefik.enable=true\"\n");
+            builder.append("      - \"traefik.http.routers.frontend.entrypoints=web\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.entrypoints=websecure\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.tls=true\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.tls.certresolver=myresolver\"\n");
+            builder.append("      - \"traefik.http.services.web.loadbalancer.server.port=8888\"\n");
+            builder.append("      - \"traefik.http.routers.frontends.tls.domains[0].main=").append(settings.domainName).append("\"\n");
         }
 
         if (settings.includeDatabase)

@@ -105,8 +105,8 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
         val indexContent = String(indexFile!!.contentsToByteArray())
         assertTrue(indexContent.contains("<title>my-custom-app</title>"))
         assertTrue(indexContent.contains("<cfoutput>"))
-        assertTrue(indexContent.contains("#server.productname#"))
-        assertTrue(indexContent.contains("#server.productversion#"))
+        assertTrue(indexContent.contains("#server.coldfusion.productname#"))
+        assertTrue(indexContent.contains("#server.lucee.version#"))
         assertTrue(indexContent.contains("</cfoutput>"))
 
         val appFile = webrootDir.findChild("Application.cfc")
@@ -287,5 +287,65 @@ class CFMLProjectGeneratorTest : BasePlatformTestCase()
         assertTrue(appContent.contains("connectionString: 'jdbc:sqlserver://db:1433;trustServerCertificate=true'"))
         assertTrue(appContent.contains("username: 'sa'"))
         assertTrue(appContent.contains("password: server.system.environment.MSSQL_SA_PASSWORD"))
+    }
+
+    @Test
+    fun testGenerateProjectDockerComposeWithoutProxy()
+    {
+        val rootDir = myFixture.tempDirFixture.findOrCreateDir("proj_docker_no_proxy")
+        val settings = CFMLProjectGenerator.Settings(
+            "no-proxy-app",
+            "7.0.x",
+            true,
+            false,
+            "MySQL",
+            false,
+            "no-proxy-app.local"
+        )
+
+        generator.generateProject(project, rootDir, settings, null)
+
+        val dockerComposeFile = rootDir.findChild("docker-compose.yml")
+        assertNotNull("Expected docker-compose.yml to be created", dockerComposeFile)
+
+        val content = String(dockerComposeFile!!.contentsToByteArray())
+        assertFalse(content.contains("dockerfile:"))
+        assertTrue(content.contains("context: frontend/"))
+        assertTrue(content.contains("volumes:\n      - ./frontend/webroot:/var/www"))
+        assertTrue(content.contains("\"8888:8888\""))
+        assertFalse(content.contains("traefik.enable=true"))
+    }
+
+    @Test
+    fun testGenerateProjectDockerComposeWithProxy()
+    {
+        val rootDir = myFixture.tempDirFixture.findOrCreateDir("proj_docker_with_proxy")
+        val settings = CFMLProjectGenerator.Settings(
+            "proxy-app",
+            "7.0.x",
+            true,
+            false,
+            "MySQL",
+            true,
+            "proxy-app.local"
+        )
+
+        generator.generateProject(project, rootDir, settings, null)
+
+        val dockerComposeFile = rootDir.findChild("docker-compose.yml")
+        assertNotNull("Expected docker-compose.yml to be created", dockerComposeFile)
+
+        val content = String(dockerComposeFile!!.contentsToByteArray())
+        assertFalse(content.contains("dockerfile:"))
+        assertTrue(content.contains("context: frontend/"))
+        assertTrue(content.contains("volumes:\n      - ./frontend/webroot:/var/www"))
+        assertTrue(content.contains("labels:"))
+        assertTrue(content.contains("\"traefik.enable=true\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontend.entrypoints=web\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.entrypoints=websecure\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.tls=true\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.tls.certresolver=myresolver\""))
+        assertTrue(content.contains("\"traefik.http.services.web.loadbalancer.server.port=8888\""))
+        assertTrue(content.contains("\"traefik.http.routers.frontends.tls.domains[0].main=proxy-app.local\""))
     }
 }
