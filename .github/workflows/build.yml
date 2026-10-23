@@ -39,7 +39,7 @@ jobs:
       # Update the version number build to match release number
       - name: Update File Content
         run: |
-          sed -i "s/VERSION_PLACEHOLDER/${{ github.ref_name }}-SNAPSHOT/g" gradle.properties
+          sed -i "s/SNAPSHOT/${{ github.ref_name }}-SNAPSHOT/g" gradle.properties
 
       # Set up the Java environment for the next steps
       - name: Setup Java
@@ -88,7 +88,7 @@ jobs:
       # Update the version number build to match release number
       - name: Update File Content
         run: |
-          sed -i "s/VERSION_PLACEHOLDER/${{ github.ref_name }}-SNAPSHOT/g" gradle.properties
+          sed -i "s/SNAPSHOT/${{ github.ref_name }}-SNAPSHOT/g" gradle.properties
 
       # Set up the Java environment for the next steps
       - name: Setup Java
@@ -140,7 +140,7 @@ jobs:
       # Update the version number build to match release number
       - name: Update File Content
         run: |
-          sed -i "s/VERSION_PLACEHOLDER/${{ github.ref_name }}-SNAPSHOT/g" gradle.properties
+          sed -i "s/SNAPSHOT/${{ github.ref_name }}-SNAPSHOT/g" gradle.properties
 
       # Set up the Java environment for the next steps
       - name: Setup Java
