@@ -339,6 +339,8 @@ object CFMLModelParser
         """(?i)(?:(?:required|\b(?:void|any|string|numeric|number|boolean|bool|array|struct|query|date|[A-Za-z0-9_$.]+)\b)\s+)*([A-Za-z0-9_]+)(?:\s*=[^,]*)?"""
     )
     private val ACCESS_ATTR_PATTERN = Pattern.compile("""(?i)\baccess\s*=\s*["']?([A-Za-z0-9_]+)["']?""")
+    private val RETURNTYPE_ATTR_PATTERN = Pattern.compile("""(?i)\breturntype\s*=\s*["']?([A-Za-z0-9_$.]+)["']?""")
+    private val TYPE_ATTR_PATTERN = Pattern.compile("""(?i)\btype\s*=\s*["']?([A-Za-z0-9_$.]+)["']?""")
     private val CFFUNCTION_PATTERN = Pattern.compile("""(?i)<cffunction\b([^>]*)>""", Pattern.DOTALL)
     private val CFFUNCTION_CLOSE_PATTERN = Pattern.compile("""(?i)</cffunction>""")
     private val CFARGUMENT_PATTERN = Pattern.compile("""(?i)<cfargument\b([^>]*)>""")
@@ -414,6 +416,7 @@ object CFMLModelParser
                 ""
             }
             val access = parseAccessType(modifiersText, afterParamsText)
+            val returnType = parseReturnType(modifiersText, afterParamsText)
 
             val declRange = TextRange(matcher.start(), funcEnd)
             val nameRange = TextRange(nameStart, nameEnd)
@@ -424,7 +427,7 @@ object CFMLModelParser
             }
 
             val paramDecls = mutableListOf<CFMLVariableDeclaration>()
-            val funcDecl = CFMLFunctionDeclaration(name, nameRange, declRange, bodyRange, paramDecls, access)
+            val funcDecl = CFMLFunctionDeclaration(name, nameRange, declRange, bodyRange, paramDecls, access, returnType)
             functions.add(funcDecl)
 
             // Parse parameters
@@ -612,6 +615,31 @@ object CFMLModelParser
         return CFMLAccessType.PUBLIC
     }
 
+    fun parseReturnType(modifiers: String, extraAttrs: String = ""): String?
+    {
+        val retAttrMatcher = RETURNTYPE_ATTR_PATTERN.matcher(extraAttrs)
+        if (retAttrMatcher.find())
+        {
+            return retAttrMatcher.group(1)
+        }
+        val colonMatcher = Pattern.compile("""(?i)^\s*:\s*([A-Za-z0-9_$.]+)""").matcher(extraAttrs)
+        if (colonMatcher.find())
+        {
+            return colonMatcher.group(1)
+        }
+        val accessTokens = setOf("public", "private", "package", "remote", "static", "final", "abstract", "default")
+        val tokens = modifiers.trim().split(Regex("""\s+""")).filter { it.isNotEmpty() }
+        for (token in tokens)
+        {
+            val lower = token.lowercase()
+            if (lower !in accessTokens)
+            {
+                return token
+            }
+        }
+        return null
+    }
+
     private fun extractTagFunctions(
         text: String,
         commentRanges: List<TextRange>,
@@ -643,6 +671,8 @@ object CFMLModelParser
                     bodyRange = TextRange(matcher.end(), closeMatcher.start())
                 }
                 val access = parseAccessType("", attrs)
+                val retTypeMatcher = RETURNTYPE_ATTR_PATTERN.matcher(attrs)
+                val returnType = if (retTypeMatcher.find()) retTypeMatcher.group(1) else null
 
                 if (functions.any { it.nameRange == nameRange || (it.name.isNotEmpty() && it.name.equals(name, ignoreCase = true) && it.range.intersects(TextRange(start, tagEnd))) })
                 {
@@ -650,7 +680,7 @@ object CFMLModelParser
                 }
 
                 val paramDecls = mutableListOf<CFMLVariableDeclaration>()
-                val funcDecl = CFMLFunctionDeclaration(name, nameRange, TextRange(start, tagEnd), bodyRange, paramDecls, access)
+                val funcDecl = CFMLFunctionDeclaration(name, nameRange, TextRange(start, tagEnd), bodyRange, paramDecls, access, returnType)
                 functions.add(funcDecl)
 
                 // Check for <cfargument> inside this function
@@ -716,6 +746,8 @@ object CFMLModelParser
             val propBody = propMatcher.group(1).trim()
             val enclosingFunc = findInnermostEnclosingFunction(propStart, functions)
 
+            val typeAttrM = TYPE_ATTR_PATTERN.matcher(propBody)
+            val typeFromAttr = if (typeAttrM.find()) typeAttrM.group(1) else null
             val nameAttrM = NAME_ATTR_PATTERN.matcher(propBody)
             if (nameAttrM.find())
             {
@@ -727,7 +759,10 @@ object CFMLModelParser
                     TextRange(nameStart, nameEnd),
                     TextRange(propMatcher.start(), propMatcher.end()),
                     isLocal = false,
-                    enclosingFunction = enclosingFunc
+                    enclosingFunction = enclosingFunc,
+                    access = CFMLAccessType.PUBLIC,
+                    type = typeFromAttr,
+                    isProperty = true
                 )
                 val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
                 if (nameScopeSet.add(key))
@@ -741,6 +776,7 @@ object CFMLModelParser
                 val beforeEq = propBody.substringBefore('=').trim()
                 val eqTokens = beforeEq.split(Regex("""\s+""")).filter { it.isNotEmpty() }
                 val name = eqTokens.lastOrNull()
+                val type = if (eqTokens.size > 1) eqTokens.first() else typeFromAttr
                 if (name != null && name.matches(Regex("""[A-Za-z0-9_]+""")) && !KEYWORDS.contains(name.lowercase()))
                 {
                     val nameIdx = propBody.lastIndexOf(name)
@@ -751,7 +787,10 @@ object CFMLModelParser
                         TextRange(nameStart, nameEnd),
                         TextRange(propMatcher.start(), propMatcher.end()),
                         isLocal = false,
-                        enclosingFunction = enclosingFunc
+                        enclosingFunction = enclosingFunc,
+                        access = CFMLAccessType.PUBLIC,
+                        type = type,
+                        isProperty = true
                     )
                     val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
                     if (nameScopeSet.add(key))
@@ -809,12 +848,15 @@ object CFMLModelParser
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
+                val typeName = typedMatcher.group(1)
                 val decl = CFMLVariableDeclaration(
                     name,
                     TextRange(nameStart, nameEnd),
                     TextRange(typedMatcher.start(), typedMatcher.end()),
                     isLocal = enclosingFunc != null,
-                    enclosingFunction = enclosingFunc
+                    enclosingFunction = enclosingFunc,
+                    access = CFMLAccessType.PRIVATE,
+                    type = typeName
                 )
                 if (nameRangeSet.add(decl.nameRange))
                 {
@@ -935,13 +977,19 @@ object CFMLModelParser
             if (!KEYWORDS.contains(name.lowercase()))
             {
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
-                val isLocal = fullVar.lowercase().startsWith("local.") || (enclosingFunc != null && !fullVar.lowercase().startsWith("variables.") && !fullVar.lowercase().startsWith("this."))
+                val fullLower = fullVar.lowercase()
+                val isExplicitThis = fullLower.startsWith("this.")
+                val isExplicitVariables = fullLower.startsWith("variables.")
+                val isExplicitLocal = fullLower.startsWith("local.")
+                val access = if (isExplicitThis) CFMLAccessType.PUBLIC else CFMLAccessType.PRIVATE
+                val isLocal = isExplicitLocal || (enclosingFunc != null && !isExplicitVariables && !isExplicitThis)
                 val decl = CFMLVariableDeclaration(
                     name,
                     TextRange(nameStart, nameEnd),
                     TextRange(assignMatcher.start(1), assignMatcher.end(1)),
                     isLocal = isLocal,
-                    enclosingFunction = enclosingFunc
+                    enclosingFunction = enclosingFunc,
+                    access = access
                 )
                 val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
                 if (nameScopeSet.add(key))
@@ -975,12 +1023,18 @@ object CFMLModelParser
                 val nameEnd = start + m.end(2)
                 val fullStart = start + m.start(1)
                 val fullEnd = start + m.end(1)
+                val fullLower = fullVar.lowercase()
+                val isExplicitThis = fullLower.startsWith("this.")
+                val isExplicitVariables = fullLower.startsWith("variables.")
+                val isExplicitLocal = fullLower.startsWith("local.")
+                val access = if (isExplicitThis) CFMLAccessType.PUBLIC else CFMLAccessType.PRIVATE
                 return CFMLVariableDeclaration(
                     clean,
                     TextRange(nameStart, nameEnd),
                     TextRange(fullStart, fullEnd),
-                    isLocal = (enclosingFunc != null && !fullVar.lowercase().startsWith("variables.") && !fullVar.lowercase().startsWith("this.")) || fullVar.lowercase().startsWith("local."),
-                    enclosingFunction = enclosingFunc
+                    isLocal = (enclosingFunc != null && !isExplicitVariables && !isExplicitThis) || isExplicitLocal,
+                    enclosingFunction = enclosingFunc,
+                    access = access
                 )
             }
         }
@@ -1128,6 +1182,8 @@ object CFMLModelParser
                 continue
             }
             val attrs = cfpropMatcher.group(1)
+            val typeM = TYPE_ATTR_PATTERN.matcher(attrs)
+            val type = if (typeM.find()) typeM.group(1) else null
             val nameM = NAME_ATTR_PATTERN.matcher(attrs)
             if (nameM.find())
             {
@@ -1140,7 +1196,10 @@ object CFMLModelParser
                     TextRange(nameStart, nameEnd),
                     TextRange(cfpropMatcher.start(), cfpropMatcher.end()),
                     isLocal = false,
-                    enclosingFunction = enclosingFunc
+                    enclosingFunction = enclosingFunc,
+                    access = CFMLAccessType.PUBLIC,
+                    type = type,
+                    isProperty = true
                 )
                 val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
                 if (nameScopeSet.add(key))
@@ -1166,13 +1225,19 @@ object CFMLModelParser
             val nameStart = cfsetMatcher.start(2)
             val nameEnd = cfsetMatcher.end(2)
             val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
-            val isLocal = fullVar.lowercase().startsWith("local.") || cfsetMatcher.group().lowercase().contains("var ") || (enclosingFunc != null && !fullVar.lowercase().startsWith("variables.") && !fullVar.lowercase().startsWith("this."))
+            val fullLower = fullVar.lowercase()
+            val isExplicitThis = fullLower.startsWith("this.")
+            val isExplicitVariables = fullLower.startsWith("variables.")
+            val isExplicitLocal = fullLower.startsWith("local.")
+            val access = if (isExplicitThis) CFMLAccessType.PUBLIC else CFMLAccessType.PRIVATE
+            val isLocal = isExplicitLocal || cfsetMatcher.group().lowercase().contains("var ") || (enclosingFunc != null && !isExplicitVariables && !isExplicitThis)
             val decl = CFMLVariableDeclaration(
                 name,
                 TextRange(nameStart, nameEnd),
                 TextRange(cfsetMatcher.start(1), cfsetMatcher.end(1)),
                 isLocal = isLocal,
-                enclosingFunction = enclosingFunc
+                enclosingFunction = enclosingFunc,
+                access = access
             )
             val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
             if (nameScopeSet.add(key))
@@ -1201,13 +1266,22 @@ object CFMLModelParser
                 val nameStart = cfparamMatcher.start(1) + nameM.start(2)
                 val nameEnd = cfparamMatcher.start(1) + nameM.end(2)
                 val enclosingFunc = findInnermostEnclosingFunction(nameStart, functions)
-                val isLocal = fullVar.lowercase().startsWith("local.") || (enclosingFunc != null)
+                val fullLower = fullVar.lowercase()
+                val isExplicitThis = fullLower.startsWith("this.")
+                val isExplicitVariables = fullLower.startsWith("variables.")
+                val isExplicitLocal = fullLower.startsWith("local.")
+                val access = if (isExplicitThis) CFMLAccessType.PUBLIC else CFMLAccessType.PRIVATE
+                val isLocal = isExplicitLocal || (enclosingFunc != null && !isExplicitVariables && !isExplicitThis)
+                val typeM = TYPE_ATTR_PATTERN.matcher(attrs)
+                val type = if (typeM.find()) typeM.group(1) else null
                 val decl = CFMLVariableDeclaration(
                     name,
                     TextRange(nameStart, nameEnd),
                     TextRange(cfparamMatcher.start(), cfparamMatcher.end()),
                     isLocal = isLocal,
-                    enclosingFunction = enclosingFunc
+                    enclosingFunction = enclosingFunc,
+                    access = access,
+                    type = type
                 )
                 val key = "${name.lowercase()}#${enclosingFunc?.range?.startOffset ?: -1}"
                 if (nameScopeSet.add(key))

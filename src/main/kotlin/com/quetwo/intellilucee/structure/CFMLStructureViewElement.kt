@@ -1,5 +1,6 @@
 package com.quetwo.intellilucee.structure
 
+import com.intellij.icons.AllIcons
 import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
@@ -12,6 +13,7 @@ import com.quetwo.intellilucee.model.CFMLAccessType
 import com.quetwo.intellilucee.model.CFMLDocumentModel
 import com.quetwo.intellilucee.model.CFMLFunctionDeclaration
 import com.quetwo.intellilucee.model.CFMLModelParser
+import com.quetwo.intellilucee.model.CFMLVariableDeclaration
 import com.quetwo.intellilucee.psi.CFMLPsiFile
 import java.util.*
 import java.util.regex.Pattern
@@ -53,6 +55,8 @@ class CFMLStructurePsiElement(
 
     override fun isValid(): Boolean = containingPsiFile.isValid
 
+    override fun isPhysical(): Boolean = containingPsiFile.isPhysical
+
     override fun getTextRange(): TextRange = textRange
 
     override fun getTextOffset(): Int = nameOffset
@@ -61,17 +65,38 @@ class CFMLStructurePsiElement(
 
     override fun getPresentableText(): String = myPresentableText
 
+    override fun getNavigationElement(): PsiElement {
+        if (nameOffset in 0 until containingPsiFile.textLength) {
+            return containingPsiFile.findElementAt(nameOffset) ?: this
+        }
+        return this
+    }
+
     override fun canNavigate(): Boolean = true
 
     override fun canNavigateToSource(): Boolean = true
 
     override fun navigate(requestFocus: Boolean) {
-        val file = containingPsiFile.virtualFile ?: return
-        com.intellij.openapi.fileEditor.OpenFileDescriptor(
+        val virtualFile = containingPsiFile.virtualFile
+            ?: containingPsiFile.originalFile.virtualFile
+            ?: containingPsiFile.viewProvider.virtualFile
+
+        val descriptor = com.intellij.openapi.fileEditor.OpenFileDescriptor(
             project,
-            file,
+            virtualFile,
             nameOffset
-        ).navigate(requestFocus)
+        )
+        if (descriptor.canNavigate()) {
+            val navigatedInEditor = descriptor.navigateInEditor(project, requestFocus)
+            if (!navigatedInEditor) {
+                val editor = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project)
+                    .openTextEditor(descriptor, requestFocus)
+                if (editor != null && editor.caretModel.offset != nameOffset) {
+                    editor.caretModel.moveToOffset(nameOffset)
+                    editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.MAKE_VISIBLE)
+                }
+            }
+        }
     }
 }
 
@@ -86,7 +111,7 @@ class CFMLStructureViewElement(
 
     override fun navigate(requestFocus: Boolean) {
         if (element is com.intellij.pom.Navigatable && element.canNavigate()) {
-            com.intellij.util.OpenSourceUtil.navigate(requestFocus, element)
+            element.navigate(requestFocus)
         }
     }
 
@@ -153,10 +178,79 @@ object CFMLStructureTreeBuilder {
         val text = file.text
         if (text.isEmpty()) return emptyList()
 
+        val isCfc = file.name.endsWith(".cfc", ignoreCase = true) ||
+                file.virtualFile?.extension?.equals("cfc", ignoreCase = true) == true ||
+                file.originalFile.name.endsWith(".cfc", ignoreCase = true)
+
+        if (isCfc) {
+            return buildCfcTree(file, text)
+        }
+
         val model = CFMLModelParser.parse(text)
         val tagForest = parseTagForest(text, model)
 
         return tagForest.map { createPsiElementForTag(file, it) }
+    }
+
+    private fun buildCfcTree(file: PsiFile, text: String): List<CFMLStructurePsiElement> {
+        val model = CFMLModelParser.parse(text)
+
+        // 1. Collect component-level variables (not inside any function and not local)
+        val seenVars = mutableSetOf<String>()
+        val uniqueCompVars = mutableListOf<CFMLVariableDeclaration>()
+        for (v in model.variableDeclarations) {
+            if (v.enclosingFunction == null && !v.isLocal) {
+                val clean = CFMLDocumentModel.cleanVariableName(v.name).lowercase(Locale.ROOT)
+                if (seenVars.add(clean)) {
+                    uniqueCompVars.add(v)
+                }
+            }
+        }
+
+        val varElements = uniqueCompVars.map { createPsiElementForVariable(file, it) }
+        val funcElements = model.functions.map { createPsiElementForFunction(file, it) }
+
+        val memberElements = (varElements + funcElements).sortedBy { it.textRange.startOffset }
+
+        // Check if there is an outer <cfcomponent> tag
+        val tagNodes = scanTagsWithAttributes(text)
+        val compTag = tagNodes.find { it.name.equals("cfcomponent", ignoreCase = true) && !it.isClosing }
+        if (compTag != null) {
+            val (label, loc, icon) = computeTagPresentation(compTag)
+            val compElement = CFMLStructurePsiElement(
+                containingPsiFile = file,
+                myPresentableText = label,
+                locationText = loc,
+                icon = icon ?: CFMLIcon.FILE_CFC,
+                textRange = compTag.range,
+                nameOffset = compTag.tagHeaderRange.startOffset,
+                isLeaf = memberElements.isEmpty(),
+                childrenSupplier = { memberElements }
+            )
+            return listOf(compElement)
+        }
+
+        // Check for script component
+        val scriptCompPattern = Pattern.compile("""(?i)(?:^|\s*)component\b([^;{]*)(\{?)""")
+        val scriptCompMatcher = scriptCompPattern.matcher(text)
+        if (scriptCompMatcher.find()) {
+            val attrsText = scriptCompMatcher.group(1).trim()
+            val extendsMatcher = Pattern.compile("""(?i)\bextends\s*=\s*["']?([A-Za-z0-9_$.]+)["']?""").matcher(attrsText)
+            val loc = if (extendsMatcher.find()) "extends ${extendsMatcher.group(1)}" else null
+            val compElement = CFMLStructurePsiElement(
+                containingPsiFile = file,
+                myPresentableText = "component",
+                locationText = loc,
+                icon = CFMLIcon.FILE_CFC,
+                textRange = TextRange(scriptCompMatcher.start(), text.length),
+                nameOffset = scriptCompMatcher.start(),
+                isLeaf = memberElements.isEmpty(),
+                childrenSupplier = { memberElements }
+            )
+            return listOf(compElement)
+        }
+
+        return memberElements
     }
 
     private fun parseTagForest(text: String, model: CFMLDocumentModel): List<ParsedTagNode> {
@@ -458,6 +552,34 @@ object CFMLStructureTreeBuilder {
         )
     }
 
+    private fun createPsiElementForVariable(file: PsiFile, decl: CFMLVariableDeclaration): CFMLStructurePsiElement {
+        val cleanName = CFMLDocumentModel.cleanVariableName(decl.name)
+        val icon = if (decl.isProperty) {
+            AllIcons.Nodes.Property
+        } else {
+            AllIcons.Nodes.Variable
+        }
+
+        val locationText = when {
+            !decl.type.isNullOrBlank() -> ": ${decl.type}"
+            decl.isProperty -> "property"
+            decl.access == CFMLAccessType.PUBLIC -> "public"
+            decl.access == CFMLAccessType.PRIVATE -> "private"
+            else -> decl.access.name.lowercase(Locale.ROOT)
+        }
+
+        return CFMLStructurePsiElement(
+            containingPsiFile = file,
+            myPresentableText = cleanName,
+            locationText = locationText,
+            icon = icon,
+            textRange = decl.range,
+            nameOffset = decl.nameRange.startOffset,
+            isLeaf = true,
+            childrenSupplier = { emptyList() }
+        )
+    }
+
     private fun createPsiElementForFunction(file: PsiFile, func: CFMLFunctionDeclaration): CFMLStructurePsiElement {
         val icon = when (func.access) {
             CFMLAccessType.PUBLIC -> CFMLIcon.FUNCTION_PUBLIC
@@ -467,10 +589,15 @@ object CFMLStructureTreeBuilder {
         }
         val params = func.parameters.joinToString(", ") { it.name }
         val presentable = "${func.name}($params)"
+        val loc = if (!func.returnType.isNullOrBlank()) {
+            ": ${func.returnType}"
+        } else {
+            func.access.name.lowercase(Locale.ROOT)
+        }
         return CFMLStructurePsiElement(
             containingPsiFile = file,
             myPresentableText = presentable,
-            locationText = func.access.name.lowercase(Locale.ROOT),
+            locationText = loc,
             icon = icon,
             textRange = func.range,
             nameOffset = func.nameRange.startOffset,

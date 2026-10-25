@@ -22,7 +22,8 @@ data class CFMLFunctionDeclaration(
     override val range: TextRange,
     val bodyRange: TextRange?,
     val parameters: List<CFMLVariableDeclaration> = emptyList(),
-    val access: CFMLAccessType = CFMLAccessType.PUBLIC
+    val access: CFMLAccessType = CFMLAccessType.PUBLIC,
+    val returnType: String? = null
 ) : CFMLSymbol
 
 data class CFMLFunctionCall(
@@ -36,7 +37,10 @@ data class CFMLVariableDeclaration(
     val nameRange: TextRange,
     override val range: TextRange,
     val isLocal: Boolean,
-    val enclosingFunction: CFMLFunctionDeclaration?
+    val enclosingFunction: CFMLFunctionDeclaration?,
+    val access: CFMLAccessType = CFMLAccessType.PUBLIC,
+    val type: String? = null,
+    val isProperty: Boolean = false
 ) : CFMLSymbol
 
 data class CFMLQueryDeclaration(
