@@ -6,19 +6,25 @@
     <vendor url="https://github.com/quetwo/">Nick Kwiatkowski</vendor>
     <description><![CDATA[
         Plugin for the Lucee CFML runtime that helps developers build ColdFusion based applications.  Compatible with
-        Lucee, Adobe ColdFusion and BoxLang based engines.
+        Lucee, Adobe ColdFusion and BoxLang based engines.<br/><br/>
 
-        Includes support for .CFM, .CFML, .CFC and .CFS based files.
+        Includes support for .CFM, .CFML, .CFC and .CFS based files.<br/><br/>
 
-        - Includes Syntax Highlighting, auto-complete, built-in documentation, component introspection
-        - New project wizards and new file templates
-        - Surround with and commenting helpers
-        - Component Class Path Introspection
-        - Formatter / Linter
-
-        Roadmap items:
-        - Integrated debugger support
-        - Better support for ORM scaffolding
+        <ul><li>Includes Syntax Highlighting, auto-complete, built-in documentation, component introspection</li>
+        <li>New project wizards and new file templates</li>
+        <li>Surround with and commenting helpers</li>
+        <li>Component Class Path Introspection</li>
+        <li>Formatter / Linter</li>
+        <li>Debugger support (using Lucee Debugger Plugin)</li>
+        <li>Error Highlighting</li>
+        </ul>
+        <br>
+        Roadmap items:<br>
+        <ul>
+        <li>Better support for ORM scaffolding</li>
+        <li>Better error highlighting and notifications</li>
+        <li>Support for the RustCFML engine</li>
+        </ul>
         ]]></description>
 
     <depends>com.intellij.modules.json</depends>
