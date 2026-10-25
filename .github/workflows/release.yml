@@ -30,6 +30,24 @@ jobs:
         with:
           ref: ${{ github.event.release.tag_name }}
 
+      # Get the latest tag and update the gradle build number
+      - name: Get latest release tag
+        id: get_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch the tag name from the GitHub API
+          LATEST_TAG=$(gh api repos/${{ github.repository }}/releases/latest --jq '.tag_name')
+          echo "Latest release tag is $LATEST_TAG"
+          
+          # Save it to outputs for use in later steps
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      # Update the version number build to match release number
+      - name: Update Version Number
+        run: |
+          sed -i "s/SNAPSHOT/${{ steps.get_version.outputs.tag }}/g" gradle.properties
+
       # Set up the Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v6
