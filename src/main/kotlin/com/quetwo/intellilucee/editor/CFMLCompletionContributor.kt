@@ -154,17 +154,14 @@ class CFMLCompletionContributor : CompletionContributor()
         if (componentList.isEmpty())
         {
             val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
-            if (vFile != null)
+            var root = if (vFile.isDirectory) vFile else vFile.parent
+            while (root?.parent != null)
             {
-                var root = if (vFile.isDirectory) vFile else vFile.parent
-                while (root?.parent != null)
-                {
-                    root = root.parent
-                }
-                if (root != null)
-                {
-                    componentList = PathUtils.ListAllComponents(root)
-                }
+                root = root.parent
+            }
+            if (root != null)
+            {
+                componentList = PathUtils.ListAllComponents(root)
             }
         }
 
