@@ -963,8 +963,7 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         val model1 = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(file1)
         val func1 = model1.functions.first { it.name == "complexFunction" }
         val offset1 = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(codeWithBraceOnNextLine, func1)
-        val closingParen1 = codeWithBraceOnNextLine.indexOf(')', codeWithBraceOnNextLine.indexOf("secondParam"))
-        assertEquals("Inlay hint should be right after closing paren on the multiline argument declaration line", closingParen1 + 1, offset1)
+        assertEquals("Inlay hint should be placed after text on the first line of the declaration", codeWithBraceOnNextLine.indexOf("complexFunction(") + "complexFunction(".length, offset1)
 
         val codeWithBraceOnSameLine = """
             component {
@@ -980,9 +979,32 @@ class CFMLFindUsagesAndGotoTest : BasePlatformTestCase() {
         val model2 = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(file2)
         val func2 = model2.functions.first { it.name == "complexFunction2" }
         val offset2 = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(codeWithBraceOnSameLine, func2)
-        val closingParen2 = codeWithBraceOnSameLine.indexOf(')', codeWithBraceOnSameLine.indexOf("secondParam"))
-        val brace2 = codeWithBraceOnSameLine.indexOf('{', closingParen2)
-        assertTrue("Inlay hint should be after arguments and before curly brace", offset2 in (closingParen2 + 1)..brace2)
+        assertEquals("Inlay hint should be placed after text on the first line of the declaration", codeWithBraceOnSameLine.indexOf("complexFunction2(") + "complexFunction2(".length, offset2)
+    }
+
+    @Test
+    fun testInlayHintsPositioningForLongFunctionDeclarationWithAttributes() {
+        val code = """
+            component {
+                remote function sendMessage(numeric threadID restArgSource="path") httpMethod="POST" restPath="/{threadID}"
+                { }
+                
+                remote function sendMessageSameLine(numeric threadID restArgSource="path") httpMethod="POST" restPath="/{threadID}" {
+                }
+            }
+        """.trimIndent()
+        val file = myFixture.configureByText("LongFuncTest.cfc", code)
+        val model = com.quetwo.intellilucee.psi.CFMLPsiUtil.getModel(file)
+        
+        val func1 = model.functions.first { it.name == "sendMessage" }
+        val offset1 = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(code, func1)
+        val line1Expected = code.indexOf("restPath=\"/{threadID}\"") + "restPath=\"/{threadID}\"".length
+        assertEquals("Inlay hint must be placed after the text on the first line of the declaration (after restPath)", line1Expected, offset1)
+        
+        val func2 = model.functions.first { it.name == "sendMessageSameLine" }
+        val offset2 = CFMLFunctionUsageInlayHintsProvider.findFunctionInlayOffset(code, func2)
+        val line2Expected = code.indexOf("restPath=\"/{threadID}\"", code.indexOf("sendMessageSameLine")) + "restPath=\"/{threadID}\"".length
+        assertEquals("Inlay hint must be placed after the declaration text before curly brace on same line", line2Expected, offset2)
     }
 
     @Test

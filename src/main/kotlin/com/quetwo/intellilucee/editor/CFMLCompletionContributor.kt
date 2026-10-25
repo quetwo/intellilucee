@@ -333,7 +333,7 @@ class CFMLCompletionContributor : CompletionContributor()
         {
             if (file == null) return false
             val vFile = file.virtualFile ?: file.originalFile.virtualFile ?: file.viewProvider.virtualFile
-            val ext = vFile?.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
+            val ext = vFile.extension?.lowercase() ?: file.name.substringAfterLast('.', "").lowercase()
             return ext == "cfm" || ext == "cfml"
         }
 
@@ -398,10 +398,8 @@ class CFMLCompletionContributor : CompletionContributor()
                 if (text[i] == '<')
                 {
                     var cursor = i + 1
-                    var isClose = false
                     if (cursor < len && text[cursor] == '/')
                     {
-                        isClose = true
                         cursor++
                     }
                     if (cursor + 1 < len && text.regionMatches(cursor, "cf", 0, 2, ignoreCase = true))

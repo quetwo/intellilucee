@@ -519,6 +519,8 @@ object CFMLModelParser
     {
         var i = fromIndex
         val len = text.length
+        var inSingle = false
+        var inDouble = false
         while (i < len)
         {
             val commentEnd = getCommentEndIfInside(i, commentRanges)
@@ -528,6 +530,30 @@ object CFMLModelParser
                 continue
             }
             val c = text[i]
+            if (inSingle)
+            {
+                if (c == '\'') inSingle = false
+                i++
+                continue
+            }
+            if (inDouble)
+            {
+                if (c == '"') inDouble = false
+                i++
+                continue
+            }
+            if (c == '\'')
+            {
+                inSingle = true
+                i++
+                continue
+            }
+            if (c == '"')
+            {
+                inDouble = true
+                i++
+                continue
+            }
             if (c == ';') return -1 // Semicolon before brace means no body (interface/abstract)
             if (c == '{') return i
             if (c == '}' || c == '<') return -1

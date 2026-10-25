@@ -47,9 +47,9 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
     {
         /**
          * Finds the offset where the function usages inlay hint should be placed:
-         * - On the same line as the function declaration.
-         * - If the curly brace '{' is on the same line, before '{', but after the list of arguments.
-         * - If the curly brace '{' is on a subsequent line, after the list of arguments on the declaration line.
+         * - Always after the text on the first line of the function declaration.
+         * - If the curly brace '{' is on the first line (outside strings and comments), before '{'.
+         * - If the curly brace '{' is on a subsequent line (or absent), at the end of the text on the first line.
          */
         @JvmStatic
         @JvmOverloads
@@ -81,129 +81,171 @@ class CFMLFunctionUsageInlayHintsProvider : InlayHintsProvider
                 }
             }
 
+            // Find the end of the first line of the declaration (relative to name / decl)
+            val len = text.length
+            var firstLineEnd = len
+            var lineScan = nameEnd
+            while (lineScan < len)
+            {
+                val c = text[lineScan]
+                if (c == '\n' || c == '\r')
+                {
+                    firstLineEnd = lineScan
+                    break
+                }
+                lineScan++
+            }
+
             if (isTagFunc)
             {
-                // Find the closing '>' of the <cffunction> opening tag
-                var i = nameEnd
-                val len = text.length
-                while (i < len)
+                // Find closing '>' on the first line or overall opening tag
+                var inSingle = false
+                var inDouble = false
+                val tagStart = if (declStart < text.length && text[declStart] == '<') declStart else text.lastIndexOf("<cffunction", nameEnd, ignoreCase = true).coerceAtLeast(0)
+                var i = tagStart
+                while (i < firstLineEnd)
                 {
                     val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
                     if (commentEnd > i)
                     {
-                        i = commentEnd
+                        i = commentEnd.coerceAtMost(firstLineEnd)
                         continue
                     }
                     val c = text[i]
+                    if (inSingle)
+                    {
+                        if (c == '\'') inSingle = false
+                        i++
+                        continue
+                    }
+                    if (inDouble)
+                    {
+                        if (c == '"') inDouble = false
+                        i++
+                        continue
+                    }
+                    if (c == '\'')
+                    {
+                        inSingle = true
+                        i++
+                        continue
+                    }
+                    if (c == '"')
+                    {
+                        inDouble = true
+                        i++
+                        continue
+                    }
                     if (c == '>')
                     {
                         return i
                     }
                     i++
                 }
+
+                // If '>' not on first line, place at the end of the text on the first line
+                var offset = firstLineEnd
+                while (offset > nameEnd && (text[offset - 1] == ' ' || text[offset - 1] == '\t'))
+                {
+                    offset--
+                }
+                return offset
             }
 
-            // 2. Script function: find opening '(' and matching closing ')' for arguments list
-            var openParen = -1
+            // 2. Script function: Scan the first line of the declaration
+            var inSingle = false
+            var inDouble = false
+            var parenDepth = 0
+            var braceOnFirstLine = -1
+            var commentStartOnFirstLine = -1
             var i = nameEnd
-            val len = text.length
-            while (i < len)
+
+            while (i < firstLineEnd)
             {
                 val commentEnd = CFMLModelParser.getCommentEndIfInside(i, commentRanges)
                 if (commentEnd > i)
                 {
-                    i = commentEnd
+                    if (commentStartOnFirstLine < 0)
+                    {
+                        commentStartOnFirstLine = i
+                    }
+                    i = commentEnd.coerceAtMost(firstLineEnd)
                     continue
                 }
-                val c = text[i]
-                if (c == '(')
+
+                // Check for line comment // or /* starting on this line
+                if (!inSingle && !inDouble && i + 1 < firstLineEnd && text[i] == '/' && (text[i + 1] == '/' || text[i + 1] == '*'))
                 {
-                    openParen = i
+                    if (commentStartOnFirstLine < 0)
+                    {
+                        commentStartOnFirstLine = i
+                    }
                     break
                 }
-                if (c == '{' || c == ';')
+
+                val c = text[i]
+                if (inSingle)
                 {
+                    if (c == '\'') inSingle = false
+                    i++
+                    continue
+                }
+                if (inDouble)
+                {
+                    if (c == '"') inDouble = false
+                    i++
+                    continue
+                }
+                if (c == '\'')
+                {
+                    inSingle = true
+                    i++
+                    continue
+                }
+                if (c == '"')
+                {
+                    inDouble = true
+                    i++
+                    continue
+                }
+
+                if (c == '(')
+                {
+                    parenDepth++
+                }
+                else if (c == ')')
+                {
+                    if (parenDepth > 0) parenDepth--
+                }
+                else if (c == '{' && parenDepth == 0)
+                {
+                    braceOnFirstLine = i
+                    break
+                }
+                else if (c == ';' && parenDepth == 0)
+                {
+                    firstLineEnd = i
                     break
                 }
                 i++
             }
 
-            var afterArgs = nameEnd
-            if (openParen >= 0)
+            if (braceOnFirstLine >= 0)
             {
-                var parenDepth = 0
-                var j = openParen
-                while (j < len)
-                {
-                    val commentEnd = CFMLModelParser.getCommentEndIfInside(j, commentRanges)
-                    if (commentEnd > j)
-                    {
-                        j = commentEnd
-                        continue
-                    }
-                    val c = text[j]
-                    if (c == '(')
-                    {
-                        parenDepth++
-                    }
-                    else if (c == ')')
-                    {
-                        parenDepth--
-                        if (parenDepth == 0)
-                        {
-                            afterArgs = j + 1
-                            break
-                        }
-                    }
-                    j++
-                }
-            }
-
-            // 3. Scan the remainder of the line after arguments to see if '{' is on the same line
-            var lineEnd = text.length
-            var braceOnSameLine = -1
-            var k = afterArgs
-            while (k < len)
-            {
-                val commentEnd = CFMLModelParser.getCommentEndIfInside(k, commentRanges)
-                if (commentEnd > k)
-                {
-                    k = commentEnd
-                    continue
-                }
-                val c = text[k]
-                if (c == '\n' || c == '\r')
-                {
-                    lineEnd = k
-                    break
-                }
-                if (c == '{')
-                {
-                    braceOnSameLine = k
-                    break
-                }
-                if (c == ';')
-                {
-                    lineEnd = k
-                    break
-                }
-                k++
-            }
-
-            if (braceOnSameLine >= 0)
-            {
-                // Curly brace is on the same line: place before '{', but after arguments
-                var beforeBrace = braceOnSameLine
-                while (beforeBrace > afterArgs && (text[beforeBrace - 1] == ' ' || text[beforeBrace - 1] == '\t'))
+                // Curly brace '{' is on the first line: place before '{'
+                var beforeBrace = braceOnFirstLine
+                while (beforeBrace > nameEnd && (text[beforeBrace - 1] == ' ' || text[beforeBrace - 1] == '\t'))
                 {
                     beforeBrace--
                 }
                 return beforeBrace
             }
 
-            // Curly brace is on a new line or absent: place at end of declaration line, after arguments
-            var offset = lineEnd
-            while (offset > afterArgs && (text[offset - 1] == ' ' || text[offset - 1] == '\t'))
+            // Curly brace is on a subsequent line, absent, or multiline:
+            // Place after the text on the first line of the declaration
+            val endLimit = if (commentStartOnFirstLine in nameEnd until firstLineEnd) commentStartOnFirstLine else firstLineEnd
+            var offset = endLimit
+            while (offset > nameEnd && (text[offset - 1] == ' ' || text[offset - 1] == '\t'))
             {
                 offset--
             }
