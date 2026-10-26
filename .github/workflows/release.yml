@@ -59,6 +59,10 @@ jobs:
         with:
           cache-read-only: true
 
+      # Fix Gradle Permissions due to Windows vs. Linux runtimes
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
       # Update the Unreleased section with the current release note
       - name: Patch Changelog
         if: ${{ github.event.release.body != '' }}
