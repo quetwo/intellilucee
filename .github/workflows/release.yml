@@ -27,8 +27,6 @@ jobs:
       # Check out the current repository
       - name: Fetch Sources
         uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.release.tag_name }}
 
       # Get the latest tag and update the gradle build number
       - name: Get latest release tag
@@ -43,10 +41,10 @@ jobs:
           # Save it to outputs for use in later steps
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
 
-      # Update the version number build to match release number
+      # Update the version number build to match release number, removes v from version
       - name: Update Version Number
         run: |
-          sed -i "s/SNAPSHOT/${{ steps.get_version.outputs.tag }}/g" gradle.properties
+          sed -i "s/SNAPSHOT/${{ steps.get_version.outputs.tag }}/g; s/=v/=/g" gradle.properties
 
       # Set up the Java environment for the next steps
       - name: Setup Java
