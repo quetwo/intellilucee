@@ -4,6 +4,7 @@ import com.intellij.icons.AllIcons
 import com.intellij.ide.structureView.StructureViewTreeElement
 import com.intellij.ide.util.treeView.smartTree.TreeElement
 import com.intellij.navigation.ItemPresentation
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
@@ -81,21 +82,13 @@ class CFMLStructurePsiElement(
             ?: containingPsiFile.originalFile.virtualFile
             ?: containingPsiFile.viewProvider.virtualFile
 
-        val descriptor = com.intellij.openapi.fileEditor.OpenFileDescriptor(
+        val descriptor = OpenFileDescriptor(
             project,
             virtualFile,
             nameOffset
         )
         if (descriptor.canNavigate()) {
-            val navigatedInEditor = descriptor.navigateInEditor(project, requestFocus)
-            if (!navigatedInEditor) {
-                val editor = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project)
-                    .openTextEditor(descriptor, requestFocus)
-                if (editor != null && editor.caretModel.offset != nameOffset) {
-                    editor.caretModel.moveToOffset(nameOffset)
-                    editor.scrollingModel.scrollToCaret(com.intellij.openapi.editor.ScrollType.MAKE_VISIBLE)
-                }
-            }
+            descriptor.navigate(requestFocus)
         }
     }
 }

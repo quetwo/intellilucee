@@ -9,6 +9,7 @@
 
 ### Changed
 - Updated the lexer to fix a possible bug with project scanning, causing an unresponsive IDE for very large projects.
+- Replaced deprecated editor opening calls in `CFMLStructurePsiElement` with supported `OpenFileDescriptor.navigate` API.
 
 ## 0.9.0
 
