@@ -15,7 +15,6 @@ import com.quetwo.intellilucee.model.CFMLDocumentModel
 import com.quetwo.intellilucee.model.CFMLFunctionDeclaration
 import com.quetwo.intellilucee.model.CFMLModelParser
 import com.quetwo.intellilucee.model.CFMLVariableDeclaration
-import com.quetwo.intellilucee.psi.CFMLPsiFile
 import java.util.*
 import java.util.regex.Pattern
 import javax.swing.Icon
@@ -185,14 +184,28 @@ object CFMLStructureTreeBuilder {
         return tagForest.map { createPsiElementForTag(file, it) }
     }
 
+    private val NON_VAR_TAG_NAMES = setOf(
+        "cffunction", "cfargument", "cfcomponent", "cfreturn", "cfif", "cfelse", "cfelseif",
+        "cfoutput", "cfloop", "cfinvoke", "cfinclude"
+    )
+
     private fun buildCfcTree(file: PsiFile, text: String): List<CFMLStructurePsiElement> {
         val model = CFMLModelParser.parse(text)
+        val tagNodes = scanTagsWithAttributes(text)
+
+        fun isInsideNonVarTagHeader(offset: Int): Boolean {
+            return tagNodes.any { tag ->
+                tag.name.lowercase(Locale.ROOT) in NON_VAR_TAG_NAMES && tag.tagHeaderRange.containsOffset(offset)
+            }
+        }
 
         // 1. Collect component-level variables (not inside any function and not local)
         val seenVars = mutableSetOf<String>()
         val uniqueCompVars = mutableListOf<CFMLVariableDeclaration>()
         for (v in model.variableDeclarations) {
-            if (v.enclosingFunction == null && !v.isLocal) {
+            if (isInsideNonVarTagHeader(v.nameRange.startOffset)) continue
+            val isInsideAnyFunc = v.enclosingFunction != null || model.functions.any { it.range.containsOffset(v.range.startOffset) }
+            if (!isInsideAnyFunc && !v.isLocal) {
                 val clean = CFMLDocumentModel.cleanVariableName(v.name).lowercase(Locale.ROOT)
                 if (seenVars.add(clean)) {
                     uniqueCompVars.add(v)
@@ -201,12 +214,34 @@ object CFMLStructureTreeBuilder {
         }
 
         val varElements = uniqueCompVars.map { createPsiElementForVariable(file, it) }
-        val funcElements = model.functions.map { createPsiElementForFunction(file, it) }
+
+        // 2. Build function elements with variables inside each function as child nodes
+        val funcElements = model.functions.map { func ->
+            val seenFuncVars = mutableSetOf<String>()
+            val uniqueFuncVars = mutableListOf<CFMLVariableDeclaration>()
+            for (v in model.variableDeclarations) {
+                if (isInsideNonVarTagHeader(v.nameRange.startOffset)) continue
+                val isEnclosedInFunc = v.enclosingFunction == func ||
+                        (v.enclosingFunction != null && v.enclosingFunction.name.equals(func.name, ignoreCase = true) && v.enclosingFunction.range == func.range) ||
+                        (v.enclosingFunction == null && func.range.containsOffset(v.range.startOffset))
+                val isParam = func.parameters.any { it.nameRange == v.nameRange || it.range == v.range }
+                if (isEnclosedInFunc && !isParam) {
+                    val clean = CFMLDocumentModel.cleanVariableName(v.name).lowercase(Locale.ROOT)
+                    if (seenFuncVars.add(clean)) {
+                        uniqueFuncVars.add(v)
+                    }
+                }
+            }
+            val funcVarElements = uniqueFuncVars
+                .sortedBy { it.range.startOffset }
+                .map { createPsiElementForVariable(file, it) }
+
+            createPsiElementForFunction(file, func, funcVarElements)
+        }
 
         val memberElements = (varElements + funcElements).sortedBy { it.textRange.startOffset }
 
         // Check if there is an outer <cfcomponent> tag
-        val tagNodes = scanTagsWithAttributes(text)
         val compTag = tagNodes.find { it.name.equals("cfcomponent", ignoreCase = true) && !it.isClosing }
         if (compTag != null) {
             val (label, loc, icon) = computeTagPresentation(compTag)
@@ -573,7 +608,11 @@ object CFMLStructureTreeBuilder {
         )
     }
 
-    private fun createPsiElementForFunction(file: PsiFile, func: CFMLFunctionDeclaration): CFMLStructurePsiElement {
+    private fun createPsiElementForFunction(
+        file: PsiFile,
+        func: CFMLFunctionDeclaration,
+        children: List<CFMLStructurePsiElement> = emptyList()
+    ): CFMLStructurePsiElement {
         val icon = when (func.access) {
             CFMLAccessType.PUBLIC -> CFMLIcon.FUNCTION_PUBLIC
             CFMLAccessType.PRIVATE -> CFMLIcon.FUNCTION_PRIVATE
@@ -594,8 +633,8 @@ object CFMLStructureTreeBuilder {
             icon = icon,
             textRange = func.range,
             nameOffset = func.nameRange.startOffset,
-            isLeaf = true,
-            childrenSupplier = { emptyList() }
+            isLeaf = children.isEmpty(),
+            childrenSupplier = { children }
         )
     }
 

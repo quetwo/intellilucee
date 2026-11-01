@@ -265,7 +265,9 @@ class CFMLStructureViewTest : BasePlatformTestCase() {
         val getUserFn = compChildren.find { it.presentation.presentableText?.startsWith("getUser") == true }
         assertEquals("getUser(userId)", getUserFn!!.presentation.presentableText)
         assertEquals(": struct", getUserFn.presentation.locationString)
-        assertEquals(0, getUserFn.children.size)
+        assertEquals(1, getUserFn.children.size)
+        val localValChild = getUserFn.children[0]
+        assertEquals("localVal", localValChild.presentation.presentableText)
 
         val checkAuthFn = compChildren.find { it.presentation.presentableText?.startsWith("checkAuth") == true }
         assertEquals("checkAuth()", checkAuthFn!!.presentation.presentableText)
@@ -330,7 +332,9 @@ class CFMLStructureViewTest : BasePlatformTestCase() {
         val saveFn = compChildren.find { it.presentation.presentableText?.startsWith("save") == true }
         assertEquals("save(id, name)", saveFn!!.presentation.presentableText)
         assertEquals(": void", saveFn.presentation.locationString)
-        assertEquals(0, saveFn.children.size)
+        assertEquals(1, saveFn.children.size)
+        val innerXChild = saveFn.children[0]
+        assertEquals("innerX", innerXChild.presentation.presentableText)
 
         val authFn = compChildren.find { it.presentation.presentableText?.startsWith("isAuthorized") == true }
         assertEquals("isAuthorized()", authFn!!.presentation.presentableText)
@@ -363,7 +367,9 @@ class CFMLStructureViewTest : BasePlatformTestCase() {
 
         val runFn = children.find { it.presentation.presentableText?.startsWith("run") == true } as CFMLStructureViewElement
         assertEquals("run()", runFn.presentation.presentableText)
-        assertEquals(0, runFn.children.size)
+        assertEquals(1, runFn.children.size)
+        val localIChild = runFn.children[0]
+        assertEquals("localI", localIChild.presentation.presentableText)
 
         // Verify navigation
         assertTrue(runFn.canNavigate())
@@ -373,6 +379,49 @@ class CFMLStructureViewTest : BasePlatformTestCase() {
         assertNotNull(psiElem.navigationElement)
         runFn.navigate(true)
         assertEquals(psiElem.textOffset, myFixture.editor.caretModel.offset)
+    }
+
+    @Test
+    fun testFunctionScopedVariablesInCfc() {
+        val code = """
+            component {
+                this.globalCount = 0;
+
+                public function calculate(numeric a, numeric b) {
+                    var sum = a + b;
+                    var local.diff = a - b;
+                    var numeric product = a * b;
+                    this.lastResult = sum;
+                }
+
+                public function emptyFunc() {}
+            }
+        """.trimIndent()
+
+        val file = myFixture.configureByText("Calc.cfc", code) as CFMLPsiFile
+        val root = CFMLStructureViewElement(file)
+        val comp = root.children[0] as CFMLStructureViewElement
+        val compChildren = comp.children
+
+        val calcFn = compChildren.find { it.presentation.presentableText?.startsWith("calculate") == true } as CFMLStructureViewElement
+        assertNotNull("calculate function should exist", calcFn)
+
+        val calcVarChildren = calcFn.children
+        val varNames = calcVarChildren.map { it.presentation.presentableText }
+        assertEquals(listOf("sum", "diff", "product", "lastResult"), varNames)
+
+        val productVar = calcVarChildren.find { it.presentation.presentableText == "product" } as CFMLStructureViewElement
+        assertEquals("private", productVar.presentation.locationString)
+
+        // Navigation on variable within function
+        assertTrue(productVar.canNavigate())
+        val productPsi = productVar.value as CFMLStructurePsiElement
+        productVar.navigate(true)
+        assertEquals(productPsi.textOffset, myFixture.editor.caretModel.offset)
+        assertEquals("product", file.text.substring(productPsi.textOffset, productPsi.textOffset + "product".length))
+
+        val emptyFn = compChildren.find { it.presentation.presentableText?.startsWith("emptyFunc") == true } as CFMLStructureViewElement
+        assertEquals(0, emptyFn.children.size)
     }
 
     @Test
