@@ -3,5 +3,6 @@ package com.quetwo.intellilucee.settings
 data class CFMLGlobalSettingsState(
     var lspReleaseVersion: String = "LATEST",
     var autoCloseTags: Boolean = true,
-    var syntaxAndErrorHighlighting: Boolean = true
+    var syntaxAndErrorHighlighting: Boolean = true,
+    var exposeProjectViaMcp: Boolean = false
 )

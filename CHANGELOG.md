@@ -2,7 +2,15 @@
 
 # IntelliLucee Changelog
 
-## [Unreleased]
+## Unreleased Version
+
+### Added
+- Added option to expose your codebase via an MCP server to help with AI plugins and applications (experimental).  Feature is turned off by default.
+
+### Changed
+- Updated the lexer to fix a possible bug with project scanning, causing an unresponsive IDE for very large projects.
+
+## 0.9.0
 
 ### Changed
 - The CFML language server is now clif (formerly cfmleditor-lsp), downloaded from `cfmleditor/clif`. The `clif` archive is tried first and the `cfmleditor-lsp` one after it, so a pinned release from before the rename still installs, and an executable already downloaded under either name is still used.

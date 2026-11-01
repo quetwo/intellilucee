@@ -149,7 +149,7 @@ class CFMLLexerTest {
 
     @Test
     fun testNumbers() {
-        val code = "42 3.14 0xFF 1.5e10"
+        val code = "42 3.14 0xFF 1.5e10 .5 .123 .5e-2"
         val tokens = tokenize(code).filter { it.second != TokenType.WHITE_SPACE }
         assertEquals(CFMLTokenTypes.INTEGER_LITERAL, tokens[0].second)
         assertEquals("42", tokens[0].first)
@@ -159,6 +159,27 @@ class CFMLLexerTest {
         assertEquals("0xFF", tokens[2].first)
         assertEquals(CFMLTokenTypes.FLOAT_LITERAL, tokens[3].second)
         assertEquals("1.5e10", tokens[3].first)
+        assertEquals(CFMLTokenTypes.FLOAT_LITERAL, tokens[4].second)
+        assertEquals(".5", tokens[4].first)
+        assertEquals(CFMLTokenTypes.FLOAT_LITERAL, tokens[5].second)
+        assertEquals(".123", tokens[5].first)
+        assertEquals(CFMLTokenTypes.FLOAT_LITERAL, tokens[6].second)
+        assertEquals(".5e-2", tokens[6].first)
+    }
+
+    @Test
+    fun testValidatingLexerProgress() {
+        val lexer = CFMLLexer()
+        val code = "<cfset x = .5><cfset y = .12345>"
+        lexer.start(code, 0, code.length, CFMLLexer.STATE_DEFAULT)
+        var lastEnd = 0
+        while (lexer.tokenType != null) {
+            assertTrue("Lexer must make progress", lexer.tokenEnd > lexer.tokenStart)
+            assertEquals(lastEnd, lexer.tokenStart)
+            lastEnd = lexer.tokenEnd
+            lexer.advance()
+        }
+        assertEquals(code.length, lastEnd)
     }
 
     @Test

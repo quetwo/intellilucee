@@ -448,6 +448,10 @@ public class CFMLLexer extends LexerBase
             }
 
             boolean isFloat = (c == '.');
+            if (isFloat)
+            {
+                i++;
+            }
             while (i < bufferEnd && Character.isDigit(buffer.charAt(i)))
             {
                 i++;
@@ -463,7 +467,6 @@ public class CFMLLexer extends LexerBase
             }
             if (i < bufferEnd && (buffer.charAt(i) == 'e' || buffer.charAt(i) == 'E'))
             {
-                isFloat = true;
                 int expIdx = i + 1;
                 if (expIdx < bufferEnd && (buffer.charAt(expIdx) == '+' || buffer.charAt(expIdx) == '-'))
                 {
@@ -471,6 +474,7 @@ public class CFMLLexer extends LexerBase
                 }
                 if (expIdx < bufferEnd && Character.isDigit(buffer.charAt(expIdx)))
                 {
+                    isFloat = true;
                     i = expIdx + 1;
                     while (i < bufferEnd && Character.isDigit(buffer.charAt(i)))
                     {

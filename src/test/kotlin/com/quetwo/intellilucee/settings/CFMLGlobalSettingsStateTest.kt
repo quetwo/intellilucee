@@ -12,6 +12,7 @@ class CFMLGlobalSettingsStateTest
         assertEquals("LATEST", state.lspReleaseVersion)
         assertEquals(true, state.autoCloseTags)
         assertEquals(true, state.syntaxAndErrorHighlighting)
+        assertEquals(false, state.exposeProjectViaMcp)
     }
 
     @Test
@@ -24,5 +25,7 @@ class CFMLGlobalSettingsStateTest
         assertEquals(false, state.autoCloseTags)
         state.syntaxAndErrorHighlighting = false
         assertEquals(false, state.syntaxAndErrorHighlighting)
+        state.exposeProjectViaMcp = true
+        assertEquals(true, state.exposeProjectViaMcp)
     }
 }

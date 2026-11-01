@@ -35,6 +35,13 @@ class CFMLGlobalSettingsConfigurable : BoundSearchableConfigurable("Lucee CFML",
                         .bindSelected(settings.state::syntaxAndErrorHighlighting)
                 }
             }
+            group("MCP Server") {
+                row {
+                    checkBox("Expose project codebase via MCP server")
+                        .bindSelected(settings.state::exposeProjectViaMcp)
+                        .comment("Expose the project codebase via a Model Context Protocol (MCP) server.")
+                }
+            }
         }
     }
 }
