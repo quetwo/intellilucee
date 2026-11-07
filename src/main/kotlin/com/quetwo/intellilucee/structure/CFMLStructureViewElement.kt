@@ -184,27 +184,109 @@ object CFMLStructureTreeBuilder {
         return tagForest.map { createPsiElementForTag(file, it) }
     }
 
-    private val NON_VAR_TAG_NAMES = setOf(
-        "cffunction", "cfargument", "cfcomponent", "cfreturn", "cfif", "cfelse", "cfelseif",
-        "cfoutput", "cfloop", "cfinvoke", "cfinclude"
+    private val TAG_RESULT_VARIABLE_DECLARATION_PATTERN = Pattern.compile(
+        """(?i)\b(?:name|result|variable)\s*=\s*["']?(?:(?:local|variables)\.)?([A-Za-z0-9_]+)["']?"""
+    )
+    private val TAG_VARIABLE_DECLARATION_PATTERNS = mapOf(
+        "cfparam" to Pattern.compile(
+            """(?i)\bname\s*=\s*["']?(?:(?:local|variables)\.)?([A-Za-z0-9_]+)["']?"""
+        ),
+        "cfloop" to Pattern.compile(
+            """(?i)\b(?:index|item|query)\s*=\s*["']?(?:(?:local|variables)\.)?([A-Za-z0-9_]+)["']?"""
+        )
+    ) + setOf("cfquery", "cfdirectory", "cfprocresult", "cfhttp", "cffile")
+        .associateWith { TAG_RESULT_VARIABLE_DECLARATION_PATTERN }
+    private val CFSET_VARIABLE_DECLARATION_PATTERN = Pattern.compile(
+        """(?i)<cfset\s+(?:var\s+)?(?:(?:local|variables|this)\.)?([A-Za-z0-9_]+)\s*(?:=|\+=|-=|\*=|/=|&=)"""
     )
 
     private fun buildCfcTree(file: PsiFile, text: String): List<CFMLStructurePsiElement> {
         val model = CFMLModelParser.parse(text)
         val tagNodes = scanTagsWithAttributes(text)
+        val scriptDeclarationMetadataRanges = mutableListOf<TextRange>()
+        val scriptPropertyMetadataRanges = mutableListOf<TextRange>()
+        val stringRanges = CFMLModelParser.findStringRanges(text, model.commentRanges)
 
-        fun isInsideNonVarTagHeader(offset: Int): Boolean {
-            return tagNodes.any { tag ->
-                tag.name.lowercase(Locale.ROOT) in NON_VAR_TAG_NAMES && tag.tagHeaderRange.containsOffset(offset)
+        for (func in model.functions) {
+            val bodyStart = func.bodyRange?.startOffset
+            if (bodyStart != null && func.range.startOffset < bodyStart) {
+                scriptDeclarationMetadataRanges.add(TextRange(func.range.startOffset, bodyStart))
             }
+        }
+        val scriptComponentPattern = Pattern.compile("""(?i)\bcomponent\b[^{};]*\{""")
+        val scriptComponentMatcher = scriptComponentPattern.matcher(text)
+        while (scriptComponentMatcher.find()) {
+            val start = scriptComponentMatcher.start()
+            if (!CFMLModelParser.isInsideRanges(start, model.commentRanges) &&
+                !CFMLModelParser.isInsideRanges(start, stringRanges)
+            ) {
+                scriptDeclarationMetadataRanges.add(TextRange(start, scriptComponentMatcher.end() - 1))
+            }
+        }
+        val scriptPropertyPattern = Pattern.compile("""(?i)\bproperty\b[^;]*;""")
+        val scriptPropertyMatcher = scriptPropertyPattern.matcher(text)
+        while (scriptPropertyMatcher.find()) {
+            val start = scriptPropertyMatcher.start()
+            if (!CFMLModelParser.isInsideRanges(start, model.commentRanges) &&
+                !CFMLModelParser.isInsideRanges(start, stringRanges)
+            ) {
+                scriptPropertyMetadataRanges.add(TextRange(start, scriptPropertyMatcher.end()))
+            }
+        }
+
+        fun isValidTagVariableDeclaration(decl: CFMLVariableDeclaration, tag: ParsedTagNode): Boolean {
+            if (tag.name == "cfproperty") return decl.isProperty
+            if (tag.name == "cfcatch") {
+                return decl.name.equals("cfcatch", ignoreCase = true) &&
+                        decl.nameRange.startOffset == tag.tagHeaderRange.startOffset + 1
+            }
+
+            val pattern = when (tag.name) {
+                "cfset" -> CFSET_VARIABLE_DECLARATION_PATTERN
+                else -> TAG_VARIABLE_DECLARATION_PATTERNS[tag.name]
+            } ?: return false
+            val headerText = text.substring(tag.tagHeaderRange.startOffset, tag.tagHeaderRange.endOffset)
+            val matcher = pattern.matcher(headerText)
+            while (matcher.find()) {
+                if (tag.tagHeaderRange.startOffset + matcher.start(1) == decl.nameRange.startOffset) return true
+            }
+            return false
+        }
+
+        fun isVisibleVariableDeclaration(decl: CFMLVariableDeclaration): Boolean {
+            val offset = decl.nameRange.startOffset
+            val tagHeader = tagNodes.find { it.tagHeaderRange.containsOffset(offset) }
+            if (tagHeader != null) return isValidTagVariableDeclaration(decl, tagHeader)
+            if (scriptDeclarationMetadataRanges.any { it.containsOffset(offset) }) return false
+            val isInPropertyMetadata = scriptPropertyMetadataRanges.any { it.containsOffset(offset) }
+            return !isInPropertyMetadata || decl.isProperty
+        }
+
+        val functionParents = IdentityHashMap<CFMLFunctionDeclaration, CFMLFunctionDeclaration?>()
+        for (func in model.functions) {
+            functionParents[func] = model.functions
+                .asSequence()
+                .filter { parent ->
+                    parent !== func &&
+                            parent.range.startOffset <= func.range.startOffset &&
+                            func.range.endOffset <= parent.range.endOffset &&
+                            parent.range.length > func.range.length
+                }
+                .minByOrNull { it.range.length }
+        }
+        val functionForVariable = IdentityHashMap<CFMLVariableDeclaration, CFMLFunctionDeclaration?>()
+        for (variable in model.variableDeclarations) {
+            functionForVariable[variable] =
+                CFMLModelParser.findInnermostEnclosingFunction(variable.nameRange.startOffset, model.functions)
+                    ?: variable.enclosingFunction
         }
 
         // 1. Collect component-level variables (not inside any function and not local)
         val seenVars = mutableSetOf<String>()
         val uniqueCompVars = mutableListOf<CFMLVariableDeclaration>()
         for (v in model.variableDeclarations) {
-            if (isInsideNonVarTagHeader(v.nameRange.startOffset)) continue
-            val isInsideAnyFunc = v.enclosingFunction != null || model.functions.any { it.range.containsOffset(v.range.startOffset) }
+            if (!isVisibleVariableDeclaration(v)) continue
+            val isInsideAnyFunc = functionForVariable[v] != null
             if (!isInsideAnyFunc && !v.isLocal) {
                 val clean = CFMLDocumentModel.cleanVariableName(v.name).lowercase(Locale.ROOT)
                 if (seenVars.add(clean)) {
@@ -215,15 +297,14 @@ object CFMLStructureTreeBuilder {
 
         val varElements = uniqueCompVars.map { createPsiElementForVariable(file, it) }
 
-        // 2. Build function elements with variables inside each function as child nodes
-        val funcElements = model.functions.map { func ->
+        // 2. Build function elements with owned variables and nested functions as children
+        fun buildFunctionElement(func: CFMLFunctionDeclaration): CFMLStructurePsiElement {
             val seenFuncVars = mutableSetOf<String>()
             val uniqueFuncVars = mutableListOf<CFMLVariableDeclaration>()
             for (v in model.variableDeclarations) {
-                if (isInsideNonVarTagHeader(v.nameRange.startOffset)) continue
-                val isEnclosedInFunc = v.enclosingFunction == func ||
-                        (v.enclosingFunction != null && v.enclosingFunction.name.equals(func.name, ignoreCase = true) && v.enclosingFunction.range == func.range) ||
-                        (v.enclosingFunction == null && func.range.containsOffset(v.range.startOffset))
+                if (!isVisibleVariableDeclaration(v)) continue
+                val owner = functionForVariable[v]
+                val isEnclosedInFunc = owner === func || owner?.range == func.range
                 val isParam = func.parameters.any { it.nameRange == v.nameRange || it.range == v.range }
                 if (isEnclosedInFunc && !isParam) {
                     val clean = CFMLDocumentModel.cleanVariableName(v.name).lowercase(Locale.ROOT)
@@ -236,9 +317,17 @@ object CFMLStructureTreeBuilder {
                 .sortedBy { it.range.startOffset }
                 .map { createPsiElementForVariable(file, it) }
 
-            createPsiElementForFunction(file, func, funcVarElements)
+            val nestedFunctionElements = model.functions
+                .filter { functionParents[it] === func }
+                .map { buildFunctionElement(it) }
+            val functionChildren = (funcVarElements + nestedFunctionElements).sortedBy { it.textRange.startOffset }
+
+            return createPsiElementForFunction(file, func, functionChildren)
         }
 
+        val funcElements = model.functions
+            .filter { functionParents[it] == null }
+            .map { buildFunctionElement(it) }
         val memberElements = (varElements + funcElements).sortedBy { it.textRange.startOffset }
 
         // Check if there is an outer <cfcomponent> tag

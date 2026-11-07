@@ -39,7 +39,8 @@ object CFMLModelParser
         extractTagFunctions(text, commentRanges, stringRanges, functionDecls, varDecls)
 
         // 3. Extract variable declarations (Script & Tag) outside/inside functions
-        extractScriptVariableDeclarations(text, commentRanges, functionDecls, varDecls)
+        val namedCallArgumentNameRanges = findNamedCallArgumentNameRanges(text, commentRanges, stringRanges)
+        extractScriptVariableDeclarations(text, commentRanges, namedCallArgumentNameRanges, functionDecls, varDecls)
         extractTagVariableDeclarations(text, commentRanges, functionDecls, varDecls)
         extractQueryDeclarations(text, commentRanges, functionDecls, varDecls, queryDecls)
 
@@ -131,9 +132,28 @@ object CFMLModelParser
         var i = 0
         val len = text.length
         var inCfqueryBody = false
-        var tagDepth = 0
 
         while (i < len) {
+            if (text[i] == '"' || text[i] == '\'')
+            {
+                val quote = text[i]
+                i++
+                while (i < len)
+                {
+                    if (text[i] == quote)
+                    {
+                        if (i + 1 < len && text[i + 1] == quote)
+                        {
+                            i += 2
+                            continue
+                        }
+                        i++
+                        break
+                    }
+                    i++
+                }
+                continue
+            }
             // CFML tag comments: <!--- ... --->
             if (text.startsWith("<!---", i))
             {
@@ -385,7 +405,7 @@ object CFMLModelParser
             val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
             if (commentEnd > nameStart)
             {
-                if (!matcher.find(commentEnd)) break
+                matcher.region(commentEnd, text.length).useAnchoringBounds(false)
                 continue
             }
             if (isInsideRanges(nameStart, stringRanges) || isInsideRanges(nameStart, htmlScriptRanges))
@@ -442,7 +462,7 @@ object CFMLModelParser
             val commentEnd = getCommentEndIfInside(start, commentRanges)
             if (commentEnd > start)
             {
-                if (!anonMatcher.find(commentEnd)) break
+                anonMatcher.region(commentEnd, text.length).useAnchoringBounds(false)
                 continue
             }
             if (isInsideRanges(start, stringRanges) || isInsideRanges(start, htmlScriptRanges))
@@ -485,7 +505,7 @@ object CFMLModelParser
             val commentEnd = getCommentEndIfInside(start, commentRanges)
             if (commentEnd > start)
             {
-                if (!arrowMatcher.find(commentEnd)) break
+                arrowMatcher.region(commentEnd, text.length).useAnchoringBounds(false)
                 continue
             }
             if (isInsideRanges(start, stringRanges) || isInsideRanges(start, htmlScriptRanges))
@@ -665,10 +685,26 @@ object CFMLModelParser
                 // Find closing </cffunction>
                 var bodyRange: TextRange? = null
                 var tagEnd = matcher.end()
-                if (closeMatcher.find(matcher.end()))
+                var closeSearchOffset = matcher.end()
+                while (closeMatcher.find(closeSearchOffset))
                 {
-                    tagEnd = closeMatcher.end()
-                    bodyRange = TextRange(matcher.end(), closeMatcher.start())
+                    val closeStart = closeMatcher.start()
+                    val commentEnd = getCommentEndIfInside(closeStart, commentRanges)
+                    val stringEnd = getCommentEndIfInside(closeStart, stringRanges)
+                    if (commentEnd > closeStart)
+                    {
+                        closeSearchOffset = commentEnd
+                    }
+                    else if (stringEnd > closeStart)
+                    {
+                        closeSearchOffset = stringEnd
+                    }
+                    else
+                    {
+                        tagEnd = closeMatcher.end()
+                        bodyRange = TextRange(matcher.end(), closeStart)
+                        break
+                    }
                 }
                 val access = parseAccessType("", attrs)
                 val retTypeMatcher = RETURNTYPE_ATTR_PATTERN.matcher(attrs)
@@ -721,6 +757,7 @@ object CFMLModelParser
     private fun extractScriptVariableDeclarations(
         text: String,
         commentRanges: List<TextRange>,
+        namedCallArgumentNameRanges: Set<TextRange>,
         functions: List<CFMLFunctionDeclaration>,
         varDecls: MutableList<CFMLVariableDeclaration>)
     {
@@ -810,7 +847,7 @@ object CFMLModelParser
             val commentEnd = getCommentEndIfInside(varStart, commentRanges)
             if (commentEnd > varStart)
             {
-                if (!varMatcher.find(commentEnd)) break
+                varMatcher.region(commentEnd, text.length).useAnchoringBounds(false)
                 continue
             }
             val afterVar = varMatcher.end()
@@ -968,6 +1005,7 @@ object CFMLModelParser
             val name = assignMatcher.group(2)
             val nameStart = assignMatcher.start(2)
             val nameEnd = assignMatcher.end(2)
+            if (TextRange(nameStart, nameEnd) in namedCallArgumentNameRanges) continue
             val commentEnd = getCommentEndIfInside(nameStart, commentRanges)
             if (commentEnd > nameStart)
             {
@@ -999,6 +1037,152 @@ object CFMLModelParser
                 }
             }
         }
+    }
+
+    private val NAMED_CALL_ARGUMENT_PATTERN = Pattern.compile(
+        """([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=|>)"""
+    )
+    private val NON_CALL_PARENTHESIS_KEYWORDS = setOf(
+        "if", "while", "for", "switch", "catch", "function", "component", "lock", "transaction", "thread", "return"
+    )
+
+    private data class DelimiterFrame(val delimiter: Char, val isCall: Boolean = false)
+
+    private fun findNamedCallArgumentNameRanges(
+        text: String,
+        commentRanges: List<TextRange>,
+        stringRanges: List<TextRange>): Set<TextRange>
+    {
+        val result = mutableSetOf<TextRange>()
+        val delimiters = mutableListOf<DelimiterFrame>()
+
+        fun addArgumentLabel(start: Int)
+        {
+            var labelStart = start
+            while (labelStart < text.length)
+            {
+                val commentEnd = getCommentEndIfInside(labelStart, commentRanges)
+                if (commentEnd > labelStart)
+                {
+                    labelStart = commentEnd
+                    continue
+                }
+                if (!text[labelStart].isWhitespace()) break
+                labelStart++
+            }
+            if (labelStart >= text.length) return
+
+            val matcher = NAMED_CALL_ARGUMENT_PATTERN.matcher(text)
+            matcher.region(labelStart, text.length)
+            if (matcher.lookingAt())
+            {
+                result.add(TextRange(matcher.start(1), matcher.end(1)))
+            }
+        }
+
+        var i = 0
+        while (i < text.length)
+        {
+            val commentEnd = getCommentEndIfInside(i, commentRanges)
+            if (commentEnd > i)
+            {
+                i = commentEnd
+                continue
+            }
+            val stringEnd = getCommentEndIfInside(i, stringRanges)
+            if (stringEnd > i)
+            {
+                i = stringEnd
+                continue
+            }
+
+            when (text[i])
+            {
+                '(' -> {
+                    val isCall = isCallParenthesis(text, i, commentRanges)
+                    delimiters.add(DelimiterFrame('(', isCall))
+                    if (isCall) addArgumentLabel(i + 1)
+                }
+                '{', '[' -> delimiters.add(DelimiterFrame(text[i]))
+                ')' -> removeLastDelimiter(delimiters, '(')
+                '}', ']' -> removeLastDelimiter(delimiters, if (text[i] == '}') '{' else '[')
+                ',' -> if (delimiters.lastOrNull()?.let { it.delimiter == '(' && it.isCall } == true)
+                {
+                    addArgumentLabel(i + 1)
+                }
+            }
+            i++
+        }
+        return result
+    }
+
+    private fun removeLastDelimiter(delimiters: MutableList<DelimiterFrame>, delimiter: Char)
+    {
+        for (index in delimiters.indices.reversed())
+        {
+            if (delimiters[index].delimiter == delimiter)
+            {
+                delimiters.subList(index, delimiters.size).clear()
+                return
+            }
+        }
+    }
+
+    private fun isCallParenthesis(text: String, openParenOffset: Int, commentRanges: List<TextRange>): Boolean
+    {
+        var previousOffset = openParenOffset - 1
+        while (previousOffset >= 0)
+        {
+            if (text[previousOffset].isWhitespace())
+            {
+                previousOffset--
+                continue
+            }
+            val commentStart = getRangeStartIfInside(previousOffset, commentRanges)
+            if (commentStart >= 0)
+            {
+                previousOffset = commentStart - 1
+                continue
+            }
+            break
+        }
+        if (previousOffset < 0) return false
+
+        val previousChar = text[previousOffset]
+        if (previousChar == ')' || previousChar == ']' || previousChar == '}') return true
+        if (!previousChar.isLetterOrDigit() && previousChar != '_' && previousChar != '$') return false
+
+        var tokenStart = previousOffset
+        while (tokenStart >= 0 && (text[tokenStart].isLetterOrDigit() || text[tokenStart] == '_' || text[tokenStart] == '$'))
+        {
+            tokenStart--
+        }
+        val token = text.substring(tokenStart + 1, previousOffset + 1)
+        return token.lowercase() !in NON_CALL_PARENTHESIS_KEYWORDS
+    }
+
+    private fun getRangeStartIfInside(offset: Int, ranges: List<TextRange>): Int
+    {
+        var low = 0
+        var high = ranges.size - 1
+        while (low <= high)
+        {
+            val mid = (low + high) ushr 1
+            val range = ranges[mid]
+            if (offset < range.startOffset)
+            {
+                high = mid - 1
+            }
+            else if (offset >= range.endOffset)
+            {
+                low = mid + 1
+            }
+            else
+            {
+                return range.startOffset
+            }
+        }
+        return -1
     }
 
     private fun extractVarItem(
