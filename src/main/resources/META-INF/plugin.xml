@@ -158,7 +158,7 @@
 
         <!-- Support for the Debugger Configuration -->
         <configurationType implementation="com.quetwo.intellilucee.debugger.CFMLDapRemoteConfigurationType"/>
-        <configurationType implementation="com.quetwo.intellilucee.rustcfml.RustCFMLConfigurationType"/>
+        <configurationType implementation="com.quetwo.intellilucee.debugger.RustCFMLConfigurationType"/>
         <xdebugger.breakpointType implementation="com.quetwo.intellilucee.debugger.CFMLLineBreakpointType"/>
         <programRunner implementation="com.quetwo.intellilucee.debugger.CFMLDapDebuggerRunner"/>
 

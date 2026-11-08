@@ -1,4 +1,4 @@
-package com.quetwo.intellilucee.rustcfml
+package com.quetwo.intellilucee.debugger
 
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.Executor
@@ -28,7 +28,7 @@ class RustCFMLRunConfiguration(project: Project, factory: ConfigurationFactory, 
     {
         if (executablePath.isBlank())
         {
-            throw RuntimeConfigurationError("RustCFML executable is required")
+            throw RuntimeConfigurationError("RUSTCFML executable is required")
         }
 
         val executable = try
@@ -37,11 +37,11 @@ class RustCFMLRunConfiguration(project: Project, factory: ConfigurationFactory, 
         }
         catch (exception: InvalidPathException)
         {
-            throw RuntimeConfigurationError("RustCFML executable path is invalid")
+            throw RuntimeConfigurationError("RUSTCFML executable path is invalid")
         }
         if (!executable.toFile().isFile || !executable.toFile().canExecute())
         {
-            throw RuntimeConfigurationError("Select an existing executable RustCFML file")
+            throw RuntimeConfigurationError("Select an existing executable RUSTCFML file")
         }
 
         if (applicationDirectory.isBlank())

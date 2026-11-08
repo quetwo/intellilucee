@@ -1,4 +1,4 @@
-package com.quetwo.intellilucee.rustcfml
+package com.quetwo.intellilucee.debugger
 
 import com.intellij.execution.configurations.ConfigurationFactory
 import com.intellij.execution.configurations.ConfigurationTypeBase
@@ -9,7 +9,7 @@ class RustCFMLConfigurationType : ConfigurationTypeBase(
     "RustCFMLConfigurationType",
     "RustCFML",
     "Run a RustCFML application",
-    CFMLIcon.FILE
+    CFMLIcon.RUSTCFML
 )
 {
     init
@@ -22,6 +22,6 @@ class RustCFMLConfigurationType : ConfigurationTypeBase(
         override fun getId(): String = "RustCFMLConfigurationFactory"
 
         override fun createTemplateConfiguration(project: Project) =
-            RustCFMLRunConfiguration(project, this, "RustCFML")
+            RustCFMLRunConfiguration(project, this, "RUSTCFML")
     }
 }

@@ -1,6 +1,9 @@
 package com.quetwo.intellilucee.rustcfml
 
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.quetwo.intellilucee.debugger.RustCFMLConfigurationType
+import com.quetwo.intellilucee.debugger.RustCFMLRunConfiguration
+import com.quetwo.intellilucee.debugger.RustCFMLSettingsEditor
 import org.jdom.Element
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -121,7 +124,7 @@ class RustCFMLRunConfigurationTest : BasePlatformTestCase()
     private fun newConfiguration(): RustCFMLRunConfiguration
     {
         val type = RustCFMLConfigurationType()
-        return RustCFMLRunConfiguration(project, type.configurationFactories[0], "Test RustCFML")
+        return RustCFMLRunConfiguration(project, type.configurationFactories[0], "Test RUSTCFML")
     }
 
     private fun configuredFor(applicationDirectory: Path): RustCFMLRunConfiguration = newConfiguration().apply {
@@ -141,7 +144,7 @@ class RustCFMLRunConfigurationTest : BasePlatformTestCase()
         try
         {
             configuration.checkConfiguration()
-            fail("Expected invalid RustCFML configuration")
+            fail("Expected invalid RUSTCFML configuration")
         }
         catch (_: com.intellij.execution.configurations.RuntimeConfigurationError)
         {

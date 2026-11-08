@@ -15,6 +15,8 @@ public final class CFMLIcon
     public static final Icon FUNCTION_PRIVATE = IconLoader.getIcon("/icons/function_private.svg", CFMLIcon.class);
     public static final Icon FUNCTION_REMOTE = IconLoader.getIcon("/icons/function_remote.svg", CFMLIcon.class);
 
+    public static final Icon RUSTCFML = IconLoader.getIcon("/icons/rustcfml-crab.svg", CFMLIcon.class);
+
     private  CFMLIcon()
     {
 

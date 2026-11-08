@@ -1,4 +1,4 @@
-package com.quetwo.intellilucee.rustcfml
+package com.quetwo.intellilucee.debugger
 
 import com.intellij.execution.ExecutionException
 import com.intellij.execution.configurations.CommandLineState
@@ -33,7 +33,7 @@ class RustCFMLRunProfileState(
         catch (exception: Exception)
         {
             throw ExecutionException(
-                "Failed to start RustCFML executable '${configuration.executablePath}': ${exception.message ?: "unknown error"}",
+                "Failed to start RUSTCFML executable '${configuration.executablePath}': ${exception.message ?: "unknown error"}",
                 exception
             )
         }

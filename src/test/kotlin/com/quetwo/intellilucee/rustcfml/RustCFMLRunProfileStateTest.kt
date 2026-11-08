@@ -9,6 +9,9 @@ import com.intellij.execution.runners.ExecutionEnvironmentBuilder
 import com.intellij.execution.runners.ProgramRunner
 import com.intellij.execution.configurations.RunnerSettings
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import com.quetwo.intellilucee.debugger.RustCFMLConfigurationType
+import com.quetwo.intellilucee.debugger.RustCFMLRunConfiguration
+import com.quetwo.intellilucee.debugger.RustCFMLRunProfileState
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -94,7 +97,7 @@ class RustCFMLRunProfileStateTest : BasePlatformTestCase()
         val application = Files.createDirectory(fixtureDirectory.resolve("application with spaces"))
         val executable = Files.createTempFile(fixtureDirectory, "rust cfml", ".exe").apply { toFile().setExecutable(true) }
         val configurationType = RustCFMLConfigurationType()
-        return RustCFMLRunConfiguration(project, configurationType.configurationFactories[0], "Test RustCFML").apply {
+        return RustCFMLRunConfiguration(project, configurationType.configurationFactories[0], "Test RUSTCFML").apply {
             executablePath = executable.toString()
             applicationDirectory = application.toString()
             port = 18080

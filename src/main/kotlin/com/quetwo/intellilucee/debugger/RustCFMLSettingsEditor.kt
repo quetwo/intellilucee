@@ -1,4 +1,4 @@
-package com.quetwo.intellilucee.rustcfml
+package com.quetwo.intellilucee.debugger
 
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
 import com.intellij.openapi.options.SettingsEditor
@@ -12,6 +12,7 @@ import java.awt.BorderLayout
 import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
+import java.nio.file.Path
 import java.text.DecimalFormat
 import javax.swing.JComponent
 import javax.swing.JButton
@@ -34,8 +35,8 @@ open class RustCFMLSettingsEditor(
     init
     {
         val executableDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor()
-            .withTitle("Select RustCFML executable")
-            .withDescription("Select the local RustCFML executable")
+            .withTitle("Select RUSTCFML executable")
+            .withDescription("Select the local RUSTCFML executable")
         executableField.addBrowseFolderListener(project, executableDescriptor, TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT)
         downloadLatestButton.addActionListener { downloadLatestRelease() }
 
@@ -80,7 +81,7 @@ open class RustCFMLSettingsEditor(
             this.insets = insets
         }
 
-        panel.add(JLabel("RustCFML executable:"), constraints)
+        panel.add(JLabel("RUSTCFML executable:"), constraints)
         constraints.gridx = 1
         constraints.weightx = 1.0
         constraints.fill = GridBagConstraints.HORIZONTAL
@@ -109,9 +110,9 @@ open class RustCFMLSettingsEditor(
 
     private fun downloadLatestRelease()
     {
-        object : Task.Backgroundable(project, "Downloading RustCFML", true)
+        object : Task.Backgroundable(project, "Downloading RUSTCFML", true)
         {
-            private var downloadedExecutable: java.nio.file.Path? = null
+            private var downloadedExecutable: Path? = null
 
             override fun run(indicator: ProgressIndicator)
             {
@@ -127,8 +128,8 @@ open class RustCFMLSettingsEditor(
             {
                 Messages.showErrorDialog(
                     project,
-                    "Failed to download the latest RustCFML executable: ${error.message ?: "unknown error"}",
-                    "RustCFML Download Failed"
+                    "Failed to download the latest RUSTCFML executable: ${error.message ?: "unknown error"}",
+                    "RUSTCFML Download Failed"
                 )
             }
         }.queue()

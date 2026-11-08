@@ -1,4 +1,4 @@
-package com.quetwo.intellilucee.rustcfml
+package com.quetwo.intellilucee.debugger
 
 import com.google.gson.JsonParser
 import com.intellij.openapi.application.PathManager
@@ -34,16 +34,16 @@ class RustCFMLReleaseDownloader(
         }
         catch (exception: Exception)
         {
-            throw RustCFMLDownloadException("Failed to fetch the latest stable RustCFML release: ${exception.message ?: "unknown error"}", exception)
+            throw RustCFMLDownloadException("Failed to fetch the latest stable RUSTCFML release: ${exception.message ?: "unknown error"}", exception)
         }
         val release = parseLatestRelease(metadata)
         val asset = release.assets.firstOrNull { it.name == assetName }
-            ?: throw RustCFMLDownloadException("RustCFML ${release.tag} does not publish the $assetName asset")
+            ?: throw RustCFMLDownloadException("RUSTCFML ${release.tag} does not publish the $assetName asset")
 
         val versionDirectory = installDirectory.resolve(release.tag).normalize()
         if (!versionDirectory.startsWith(installDirectory.normalize()))
         {
-            throw RustCFMLDownloadException("The RustCFML release has an invalid version tag")
+            throw RustCFMLDownloadException("The RUSTCFML release has an invalid version tag")
         }
 
         try
@@ -52,11 +52,11 @@ class RustCFMLReleaseDownloader(
         }
         catch (exception: IOException)
         {
-            throw RustCFMLDownloadException("Could not create the RustCFML installation directory", exception)
+            throw RustCFMLDownloadException("Could not create the RUSTCFML installation directory", exception)
         }
         if (!Files.isDirectory(versionDirectory) || !Files.isWritable(versionDirectory))
         {
-            throw RustCFMLDownloadException("RustCFML installation directory is not writable: $versionDirectory")
+            throw RustCFMLDownloadException("RUSTCFML installation directory is not writable: $versionDirectory")
         }
 
         val executable = versionDirectory.resolve(assetName)
@@ -66,17 +66,17 @@ class RustCFMLReleaseDownloader(
         }
         catch (exception: IOException)
         {
-            throw RustCFMLDownloadException("Could not create a temporary RustCFML download file", exception)
+            throw RustCFMLDownloadException("Could not create a temporary RUSTCFML download file", exception)
         }
 
         try
         {
-            indicator?.text = "Downloading RustCFML ${release.tag}"
+            indicator?.text = "Downloading RUSTCFML ${release.tag}"
             transport.download(asset.downloadUrl, temporaryFile, indicator)
             indicator?.checkCanceled()
             if (Files.size(temporaryFile) == 0L)
             {
-                throw RustCFMLDownloadException("The RustCFML download was empty")
+                throw RustCFMLDownloadException("The RUSTCFML download was empty")
             }
             if (!assetName.endsWith(".exe", ignoreCase = true))
             {
@@ -102,7 +102,7 @@ class RustCFMLReleaseDownloader(
         }
         catch (exception: Exception)
         {
-            throw RustCFMLDownloadException("Failed to download RustCFML ${release.tag}: ${exception.message ?: "unknown error"}", exception)
+            throw RustCFMLDownloadException("Failed to download RUSTCFML ${release.tag}: ${exception.message ?: "unknown error"}", exception)
         }
         finally
         {
@@ -122,7 +122,7 @@ class RustCFMLReleaseDownloader(
         {
             if (!path.toFile().setExecutable(true))
             {
-                throw RustCFMLDownloadException("Could not mark the downloaded RustCFML binary as executable")
+                throw RustCFMLDownloadException("Could not mark the downloaded RUSTCFML binary as executable")
             }
         }
     }
@@ -143,7 +143,7 @@ class RustCFMLReleaseDownloader(
                 os.startsWith("linux") && arch in setOf("aarch64", "arm64") -> "rustcfml-linux-aarch64"
                 (os.startsWith("mac") || os.startsWith("darwin")) && arch in setOf("aarch64", "arm64") -> "rustcfml-macos-aarch64"
                 else -> throw RustCFMLDownloadException(
-                    "Latest RustCFML download is not available for $osName ($architecture); select an executable manually"
+                    "Latest RUSTCFML download is not available for $osName ($architecture); select an executable manually"
                 )
             }
         }
@@ -154,10 +154,10 @@ class RustCFMLReleaseDownloader(
             {
                 val release = JsonParser.parseString(json).asJsonObject
                 val tag = release.get("tag_name")?.asString?.takeIf { VERSION_PATTERN.matches(it) }
-                    ?: throw RustCFMLDownloadException("GitHub returned RustCFML release metadata without a valid version")
+                    ?: throw RustCFMLDownloadException("GitHub returned RUSTCFML release metadata without a valid version")
                 if (release.get("prerelease")?.asBoolean != false)
                 {
-                    throw RustCFMLDownloadException("GitHub did not return a stable RustCFML release")
+                    throw RustCFMLDownloadException("GitHub did not return a stable RUSTCFML release")
                 }
                 val assets = release.getAsJsonArray("assets")?.mapNotNull { element ->
                     val asset = element.asJsonObject
@@ -173,7 +173,7 @@ class RustCFMLReleaseDownloader(
             }
             catch (exception: Exception)
             {
-                throw RustCFMLDownloadException("Could not parse RustCFML release metadata", exception)
+                throw RustCFMLDownloadException("Could not parse RUSTCFML release metadata", exception)
             }
         }
     }

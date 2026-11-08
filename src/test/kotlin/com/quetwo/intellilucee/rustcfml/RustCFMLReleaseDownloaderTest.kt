@@ -2,6 +2,9 @@ package com.quetwo.intellilucee.rustcfml
 
 import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
+import com.quetwo.intellilucee.debugger.RustCFMLDownloadException
+import com.quetwo.intellilucee.debugger.RustCFMLHttpTransport
+import com.quetwo.intellilucee.debugger.RustCFMLReleaseDownloader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
@@ -66,7 +69,12 @@ class RustCFMLReleaseDownloaderTest
     fun testUnsupportedPlatformDoesNotContactTransport()
     {
         val transport = FakeTransport()
-        val downloader = RustCFMLReleaseDownloader(transport, "Mac OS X", "x86_64", Files.createTempDirectory("rustcfml-unsupported"))
+        val downloader = RustCFMLReleaseDownloader(
+            transport,
+            "Mac OS X",
+            "x86_64",
+            Files.createTempDirectory("rustcfml-unsupported")
+        )
 
         assertThrows(RustCFMLDownloadException::class.java) { downloader.downloadLatest() }
         assertFalse(transport.metadataRequested)
@@ -93,7 +101,8 @@ class RustCFMLReleaseDownloaderTest
     fun testMissingPlatformAssetReportsError()
     {
         val transport = FakeTransport().apply { metadata = releaseMetadata(assetName = "another-binary") }
-        val downloader = RustCFMLReleaseDownloader(transport, "Linux", "x86_64", Files.createTempDirectory("rustcfml-missing-asset"))
+        val downloader =
+            RustCFMLReleaseDownloader(transport, "Linux", "x86_64", Files.createTempDirectory("rustcfml-missing-asset"))
 
         val error = assertThrows(RustCFMLDownloadException::class.java) { downloader.downloadLatest() }
         assertTrue(error.message!!.contains("rustcfml-linux-x86_64"))
