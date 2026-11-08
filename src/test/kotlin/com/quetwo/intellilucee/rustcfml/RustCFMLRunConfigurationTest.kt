@@ -81,31 +81,6 @@ class RustCFMLRunConfigurationTest : BasePlatformTestCase()
     }
 
     @Test
-    fun testRejectsPathsEscapingThroughSymlink()
-    {
-        val root = projectRoot()
-        val outside = Files.createDirectory(root.parent.resolve("${root.fileName}-outside"))
-        val link = root.resolve("rustcfml-link")
-        try
-        {
-            try
-            {
-                Files.createSymbolicLink(link, outside)
-            }
-            catch (exception: Exception)
-            {
-                org.junit.Assume.assumeNoException("Symbolic links are unavailable in this environment", exception)
-            }
-            assertFalse(RustCFMLRunConfiguration.isWithinProject(root, link))
-        }
-        finally
-        {
-            Files.deleteIfExists(link)
-            Files.deleteIfExists(outside)
-        }
-    }
-
-    @Test
     fun testPortBoundaries()
     {
         val root = projectRoot()

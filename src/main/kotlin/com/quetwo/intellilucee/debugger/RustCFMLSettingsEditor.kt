@@ -34,7 +34,7 @@ open class RustCFMLSettingsEditor(
 
     init
     {
-        val executableDescriptor = FileChooserDescriptorFactory.createSingleFileDescriptor()
+        val executableDescriptor = FileChooserDescriptorFactory.singleFile()
             .withTitle("Select RUSTCFML executable")
             .withDescription("Select the local RUSTCFML executable")
         executableField.addBrowseFolderListener(project, executableDescriptor, TextComponentAccessor.TEXT_FIELD_WHOLE_TEXT)

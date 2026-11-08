@@ -6,7 +6,7 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -240,7 +240,7 @@ private class UrlConnectionRustCFMLHttpTransport : RustCFMLHttpTransport
         }
     }
 
-    private fun openConnection(url: String): HttpURLConnection = (URL(url).openConnection() as HttpURLConnection).apply {
+    private fun openConnection(url: String): HttpURLConnection = (URI.create(url).toURL().openConnection() as HttpURLConnection).apply {
         connectTimeout = 15_000
         readTimeout = 60_000
         instanceFollowRedirects = true
