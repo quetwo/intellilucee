@@ -2,6 +2,7 @@ package com.quetwo.intellilucee.docs
 
 import com.intellij.ide.BrowserUtil
 import java.awt.BorderLayout
+import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridLayout
@@ -15,6 +16,7 @@ import javax.swing.JList
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JSplitPane
+import javax.swing.SwingUtilities
 import javax.swing.JTextField
 import javax.swing.ListSelectionModel
 import javax.swing.event.DocumentEvent
@@ -23,13 +25,15 @@ import javax.swing.event.HyperlinkEvent
 
 class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
     private val entries = CFMLDocumentationRepository.loadEntries()
+    private var emptyMessage = "Select a function or tag to view its documentation."
+    private var initialized = false
     private val searchField = JTextField()
     private val typeFilter = JComboBox(DocumentationTypeFilter.values())
     private val engineFilter = JComboBox(engineOptions.toTypedArray())
     private val versionField = JTextField()
     private val statusLabel = JLabel()
-    private val entryList = JList<CFMLDocumentationEntry>()
-    private val detailsPane = JEditorPane()
+    internal val entryList = JList<CFMLDocumentationEntry>()
+    internal val detailsPane = JEditorPane()
     private val documentationRenderer = object : DefaultListCellRenderer() {
         override fun getListCellRendererComponent(
             list: JList<*>,
@@ -41,9 +45,10 @@ class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
             val label = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus) as JLabel
             if (value is CFMLDocumentationEntry) {
                 val summary = value.description.replace(Regex("\\s+"), " ").trim().take(140)
-                label.text = "<html><b>${value.name.htmlEscape()}</b> " +
-                    "<span style='color:#777'>${value.type}</span><br>" +
-                    "<span>${summary.htmlEscape()}</span></html>"
+                val foreground = label.foreground.toHtmlColor()
+                label.text = "<html><span style='color:$foreground'><b>${value.name.htmlEscape()}</b> " +
+                    "${value.type}<br>" +
+                    "${summary.htmlEscape()}</span></html>"
                 label.border = BorderFactory.createEmptyBorder(4, 6, 4, 6)
             }
             return label
@@ -63,7 +68,7 @@ class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
         detailsPane.contentType = "text/html"
         detailsPane.isEditable = false
         detailsPane.addHyperlinkListener { event -> openLink(event) }
-        detailsPane.text = "<html><body>Select a function or tag to view its documentation.</body></html>"
+        refreshDetails()
 
         val splitPane = JSplitPane(
             JSplitPane.HORIZONTAL_SPLIT,
@@ -90,6 +95,12 @@ class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
         typeFilter.addActionListener { applyFilters() }
         engineFilter.addActionListener { applyFilters() }
         applyFilters()
+        initialized = true
+    }
+
+    override fun updateUI() {
+        super.updateUI()
+        if (initialized) SwingUtilities.invokeLater { refreshDetails(preserveCaret = true) }
     }
 
     private fun createControls(): JPanel {
@@ -137,16 +148,28 @@ class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
             entryList.selectedIndex = 0
             statusLabel.text = versionError ?: "${result.size} entries · Missing minimum versions are shown as unknown."
         } else {
-            detailsPane.text = "<html><body>No matching CFML documentation was found.</body></html>"
+            emptyMessage = "No matching CFML documentation was found."
+            refreshDetails()
             if (versionError == null) statusLabel.text = "No matching entries."
         }
     }
 
     private fun showSelectedEntry() {
+        emptyMessage = "Select a function or tag to view its documentation."
+        refreshDetails()
+    }
+
+    private fun refreshDetails(preserveCaret: Boolean = false) {
+        val caretPosition = detailsPane.caretPosition
         val entry = entryList.selectedValue
-        detailsPane.text = entry?.let(CFMLDocumentationHtmlRenderer::render)
-            ?: "<html><body>Select a function or tag to view its documentation.</body></html>"
-        detailsPane.caretPosition = 0
+        detailsPane.text = entry?.let {
+            CFMLDocumentationHtmlRenderer.render(it, detailsPane.foreground, detailsPane.background)
+        } ?: CFMLDocumentationHtmlRenderer.renderMessage(
+            emptyMessage,
+            detailsPane.foreground,
+            detailsPane.background
+        )
+        detailsPane.caretPosition = if (preserveCaret) caretPosition.coerceAtMost(detailsPane.document.length) else 0
     }
 
     private fun openLink(event: HyperlinkEvent) {
@@ -178,3 +201,5 @@ private fun String.htmlEscape(): String = replace("&", "&amp;")
     .replace(">", "&gt;")
     .replace("\"", "&quot;")
     .replace("'", "&#39;")
+
+private fun Color.toHtmlColor(): String = "#%02x%02x%02x".format(red, green, blue)

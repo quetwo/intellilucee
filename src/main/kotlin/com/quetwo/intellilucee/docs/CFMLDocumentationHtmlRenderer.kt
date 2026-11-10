@@ -1,20 +1,17 @@
 package com.quetwo.intellilucee.docs
 
+import java.awt.Color
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
+import javax.swing.UIManager
 
 object CFMLDocumentationHtmlRenderer {
-    fun render(entry: CFMLDocumentationEntry): String = buildString {
-        append("<html><head><style>")
-        append("body{font-family:sans-serif;font-size:12px;margin:12px;color:#202124;}")
-        append("h1{font-size:20px;margin:0 0 4px;}h2{font-size:15px;margin:18px 0 6px;}")
-        append("p{margin:5px 0;}table{border-collapse:collapse;width:100%;}")
-        append("th,td{border:1px solid #c8c8c8;padding:5px;vertical-align:top;text-align:left;}")
-        append("pre{white-space:pre-wrap;background:#f3f3f3;padding:8px;}")
-        append(".muted{color:#777;}.label{font-weight:bold;}")
-        append("</style></head><body>")
-
+    fun render(
+        entry: CFMLDocumentationEntry,
+        foreground: Color = UIManager.getColor("EditorPane.foreground") ?: Color.BLACK,
+        background: Color = UIManager.getColor("EditorPane.background") ?: Color.WHITE
+    ): String = renderDocument(foreground, background) {
         append("<h1>").append(entry.name.htmlEscape()).append("</h1>")
         append("<p class=\"muted\">").append(if (entry.type == "tag") "Tag" else "Function")
             .append(" · <a href=\"https://cfdocs.org/")
@@ -121,9 +118,30 @@ object CFMLDocumentationHtmlRenderer {
                 }
             }
         }
-
-        append("</body></html>")
     }
+
+    fun renderMessage(message: String, foreground: Color, background: Color): String =
+        renderDocument(foreground, background) {
+            append("<p>").append(message.htmlEscape()).append("</p>")
+        }
+
+    private fun renderDocument(foreground: Color, background: Color, content: StringBuilder.() -> Unit): String =
+        buildString {
+            val muted = foreground.mix(background, 0.55)
+            val border = foreground.mix(background, 0.3)
+            val codeBackground = background.mix(foreground, 0.08)
+            append("<html><head><style>")
+            append("body{font-family:sans-serif;font-size:12px;margin:12px;color:${foreground.toHtmlColor()};background-color:${background.toHtmlColor()};}")
+            append("h1{font-size:20px;margin:0 0 4px;}h2{font-size:15px;margin:18px 0 6px;}")
+            append("p{margin:5px 0;}table{border-collapse:collapse;width:100%;}")
+            append("th,td{border:1px solid ${border.toHtmlColor()};padding:5px;vertical-align:top;text-align:left;}")
+            append("a{color:${foreground.toHtmlColor()};text-decoration:underline;}")
+            append("pre{white-space:pre-wrap;background-color:${codeBackground.toHtmlColor()};padding:8px;}")
+            append(".muted{color:${muted.toHtmlColor()};}.label{font-weight:bold;}")
+            append("</style></head><body>")
+            content()
+            append("</body></html>")
+        }
 
     private fun StringBuilder.appendSection(title: String, content: StringBuilder.() -> Unit) {
         append("<h2>").append(title.htmlEscape()).append("</h2>")
@@ -159,6 +177,17 @@ object CFMLDocumentationHtmlRenderer {
     }
 
     private fun String.toHtmlText(): String = htmlEscape().replace("\r\n", "\n").replace("\n", "<br>")
+
+    private fun Color.mix(other: Color, otherWeight: Double): Color {
+        val thisWeight = 1.0 - otherWeight
+        return Color(
+            (red * thisWeight + other.red * otherWeight).toInt(),
+            (green * thisWeight + other.green * otherWeight).toInt(),
+            (blue * thisWeight + other.blue * otherWeight).toInt()
+        )
+    }
+
+    private fun Color.toHtmlColor(): String = "#%02x%02x%02x".format(red, green, blue)
 
     private fun String.htmlEscape(): String = replace("&", "&amp;")
         .replace("<", "&lt;")

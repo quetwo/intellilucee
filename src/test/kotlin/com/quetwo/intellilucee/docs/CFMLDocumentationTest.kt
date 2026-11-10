@@ -1,6 +1,7 @@
 package com.quetwo.intellilucee.docs
 
 import com.google.gson.JsonParser
+import java.awt.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -92,6 +93,32 @@ class CFMLDocumentationTest {
         assertTrue(html.contains("&lt;ok&gt;"))
         assertFalse(html.contains("<script>"))
         assertTrue(html.contains("https://cfdocs.org/unsafe"))
+    }
+
+    @Test
+    fun detailHtmlUsesLightAndDarkThemeColors() {
+        val entry = record(
+            "themed",
+            "function",
+            engines = """"lucee":{"minimum_version":"5"}""",
+            extra = """, "examples":[{"code":"writeOutput('hello')"}]"""
+        )
+        val darkForeground = Color(224, 224, 224)
+        val darkBackground = Color(32, 32, 32)
+        val darkHtml = CFMLDocumentationHtmlRenderer.render(entry, darkForeground, darkBackground)
+        val lightHtml = CFMLDocumentationHtmlRenderer.render(entry, Color(32, 33, 36), Color(250, 250, 250))
+        val emptyHtml = CFMLDocumentationHtmlRenderer.renderMessage("Nothing found", darkForeground, darkBackground)
+
+        assertTrue(darkHtml.contains("color:#e0e0e0;background-color:#202020"))
+        assertTrue(darkHtml.contains("a{color:#e0e0e0;"))
+        assertTrue(darkHtml.contains("border:1px solid"))
+        assertTrue(darkHtml.contains("pre{white-space:pre-wrap;background-color:#2f2f2f;"))
+        assertTrue(lightHtml.contains("color:#202124;background-color:#fafafa"))
+        assertTrue(lightHtml.contains("a{color:#202124;"))
+        assertFalse(darkHtml.contains("#202124"))
+        assertFalse(darkHtml.contains("#f3f3f3"))
+        assertTrue(emptyHtml.contains("color:#e0e0e0;background-color:#202020"))
+        assertTrue(emptyHtml.contains("Nothing found"))
     }
 
     @Test
