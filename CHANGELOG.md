@@ -2,12 +2,22 @@
 
 # IntelliLucee Changelog
 
-## Unreleased Version
+## Unreleased
 
 ### Added
+
+### Changed
+
+ - Fixed icons on create CFML page menu to correctly represent the extension.
+
+## 0.9.2 - 2026-11-07
+
+### Added
+
 - Added option to expose your codebase via an MCP server to help with AI plugins and applications (experimental).  Feature is turned off by default.
 
 ### Changed
+
 - Updated the lexer to fix a possible bug with project scanning, causing an unresponsive IDE for very large projects.
 - Replaced deprecated editor opening calls in `CFMLStructurePsiElement` with supported `OpenFileDescriptor.navigate` API.
 - Updating the Structure View to collapse variables below function calls.
@@ -15,6 +25,7 @@
 ## 0.9.0
 
 ### Changed
+
 - The CFML language server is now clif (formerly cfmleditor-lsp), downloaded from `cfmleditor/clif`. The `clif` archive is tried first and the `cfmleditor-lsp` one after it, so a pinned release from before the rename still installs, and an executable already downloaded under either name is still used.
 - Structure View now is implemented similar to Java/JavaScript for CFC/CFS pages.
 - Fixed project creating wizard to have code for the proxy, and cleaned up code generation for the CFML side.
@@ -28,6 +39,7 @@
 - Fixed support of comment tags (`<!--- ... --->`) in the commenter and editor. Added tests for commenter.
 
 ### Added
+
 - Path mapping configuration (IDE prefix and server prefix) in DAP server settings, transmitted via `pathTransforms` in DAP `attach` requests.
 - Structure view support for .CFM and CFML files including HTML tags parsing and hierarchy
 - Generated `.gitignore` for new projects using the project generator.  Won't commit secret or IDE properties.
