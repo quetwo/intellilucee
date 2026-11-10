@@ -32,9 +32,9 @@ public final class CFMLFileCreateActions extends CreateFileFromTemplateAction im
     {
         builder.setTitle( "New CFML File" )
                 .addKind( "CFML Page (tag)", CFMLIcon.FILE_CFM, PAGE_TEMPLATE_TAG_NAME )
-                .addKind( "CFML Page (script)", CFMLIcon.FILE_CFC, PAGE_TEMPLATE_SCRIPT_NAME )
-                .addKind( "CFML Class (tag)", CFMLIcon.FILE_CFM, CLASS_TEMPLATE_TAG_NAME )
-                .addKind( "CFML Class (script)", CFMLIcon.FILE_CFS, CLASS_TEMPLATE_SCRIPT_NAME );
+                .addKind( "CFML Page (script)", CFMLIcon.FILE_CFS, PAGE_TEMPLATE_SCRIPT_NAME )
+                .addKind( "CFML Class (tag)", CFMLIcon.FILE_CFC, CLASS_TEMPLATE_TAG_NAME )
+                .addKind( "CFML Class (script)", CFMLIcon.FILE_CFC, CLASS_TEMPLATE_SCRIPT_NAME );
 
     }
 
