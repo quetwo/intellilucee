@@ -1,0 +1,57 @@
+{
+	"name":"isSimpleValue",
+	"type":"function",
+	"syntax":"isSimpleValue(value)",
+	"returns":"boolean",
+	"related":["isArray","isStruct"],
+	"description":"Returns true only if the value is a string, boolean, numeric, or date.",
+	"params": [
+		{"name":"value","description":"","required":true,"default":"","type":"any","values":[]}
+	],
+	"engines": {
+		"coldfusion": {"minimum_version":"3", "notes":"", "docs":"https://helpx.adobe.com/coldfusion/cfml-reference/coldfusion-functions/functions-in-k/issimplevalue.html"},
+		"lucee": {"minimum_version":"", "notes":"", "docs":"https://docs.lucee.org/reference/functions/issimplevalue.html"},
+		"railo": {"minimum_version":"", "notes":"", "docs":"http://railodocs.org/index.cfm/function/issimplevalue"},
+		"openbd": {"minimum_version":"", "notes":"", "docs":"http://openbd.org/manual/?/function/issimplevalue"},
+		"boxlang": {"minimum_version":"1.0.0", "notes":"", "docs":"https://boxlang.ortusbooks.com/boxlang-language/reference/built-in-functions/decision/issimplevalue"},
+		"rustcfml": {"minimum_version": ""}
+	},
+	"links": [],
+	"examples": [{
+		"title": "A number is a simple value",
+		"description": "",
+		"code": "isSimpleValue(42)",
+		"result": true,
+		"runnable": true
+	},{
+		"title": "A string is a simple value",
+		"description": "",
+		"code": "isSimpleValue(\"Hello world\")",
+		"result": true,
+		"runnable": true
+	},{
+		"title": "Null is a complex value",
+		"description": "For engines that support null, such as Lucee and Railo, `null` is considered a complex value.",
+		"code": "isSimpleValue( javaCast('null', '') )",
+		"result": false,
+		"runnable": true
+	},{
+		"title": "A structure is a complex value",
+		"description": "",
+		"code": "isSimpleValue({})",
+		"result": false,
+		"runnable": true
+	},{
+		"title": "An array is a complex value",
+		"description": "",
+		"code": "isSimpleValue([])",
+		"result": false,
+		"runnable": true
+	},{
+		"title": "A list is a simple value",
+		"description": "As lists are just strings with delimiters, they are simple values.",
+		"code": "isSimpleValue(arrayToList([]))",
+		"result": true,
+		"runnable": true
+	}]
+}

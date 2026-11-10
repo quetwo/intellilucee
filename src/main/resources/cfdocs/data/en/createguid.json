@@ -1,0 +1,24 @@
+{
+	"name": "createGUID",
+	"type": "function",
+	"syntax": "createGUID()",
+	"returns": "guid",
+	"related": ["createUUID"],
+	"description": "Creates a globally unique identifier (32 character hexadecimal string)",
+	"params": [],
+	"engines": {
+		"lucee": {"minimum_version": "", "notes": "", "docs": "https://docs.lucee.org/reference/functions/createguid.html"},
+		"boxlang": {"minimum_version":"1.0.0", "notes":"", "docs":"https://boxlang.ortusbooks.com/boxlang-language/reference/built-in-functions/system/createguid"},
+		"rustcfml": {"minimum_version": ""}
+	},
+	"links": [],
+	"examples": [
+		{
+			"title":"Creates a Globally Unique Identifier (GUID). Each GUID will be unique",
+			"description":"",
+			"code":"createGUID()",
+			"result":"",
+			"runnable":true
+		}
+	]
+}
