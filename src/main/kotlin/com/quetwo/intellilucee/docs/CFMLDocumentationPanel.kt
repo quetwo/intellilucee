@@ -93,7 +93,10 @@ class CFMLDocumentationPanel(private val project: Project? = null) : JPanel(Bord
             minimumSize = Dimension(0, 0)
         }
         add(splitPane, BorderLayout.CENTER)
-        add(statusLabel, BorderLayout.SOUTH)
+        add(JPanel(BorderLayout(0, 4)).apply {
+            add(statusLabel, BorderLayout.NORTH)
+            add(JLabel("Powered by CFDocs.org"), BorderLayout.SOUTH)
+        }, BorderLayout.SOUTH)
 
         searchField.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(event: DocumentEvent) = applyFilters()
