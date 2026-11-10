@@ -1,11 +1,20 @@
 package com.quetwo.intellilucee.docs
 
 import com.intellij.ide.BrowserUtil
+import com.intellij.openapi.ide.CopyPasteManager
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.editor.Editor
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.project.Project
 import java.awt.BorderLayout
 import java.awt.Color
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.GridLayout
+import java.awt.datatransfer.StringSelection
+import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.net.URI
 import javax.swing.BorderFactory
 import javax.swing.DefaultListCellRenderer
@@ -13,17 +22,20 @@ import javax.swing.JComboBox
 import javax.swing.JEditorPane
 import javax.swing.JLabel
 import javax.swing.JList
+import javax.swing.JMenuItem
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JSplitPane
 import javax.swing.SwingUtilities
 import javax.swing.JTextField
+import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.event.HyperlinkEvent
 
-class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
+class CFMLDocumentationPanel(private val project: Project? = null) : JPanel(BorderLayout(8, 8)) {
     private val entries = CFMLDocumentationRepository.loadEntries()
     private var emptyMessage = "Select a function or tag to view its documentation."
     private var initialized = false
@@ -61,6 +73,7 @@ class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
 
         entryList.selectionMode = ListSelectionModel.SINGLE_SELECTION
         entryList.cellRenderer = documentationRenderer
+        installResultContextMenu()
         entryList.addListSelectionListener { event ->
             if (!event.valueIsAdjusting) showSelectedEntry()
         }
@@ -124,6 +137,83 @@ class CFMLDocumentationPanel : JPanel(BorderLayout(8, 8)) {
         filters.add(versionField)
         controls.add(filters, BorderLayout.CENTER)
         return controls
+    }
+
+    private fun installResultContextMenu() {
+        entryList.addMouseListener(object : MouseAdapter() {
+            override fun mousePressed(event: MouseEvent) = showPopupForMouseEvent(event)
+            override fun mouseReleased(event: MouseEvent) = showPopupForMouseEvent(event)
+        })
+        val showPopupAction = "showDocumentationResultPopup"
+        entryList.inputMap.put(KeyStroke.getKeyStroke("shift F10"), showPopupAction)
+        entryList.inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_CONTEXT_MENU, 0), showPopupAction)
+        entryList.actionMap.put(showPopupAction, object : javax.swing.AbstractAction() {
+            override fun actionPerformed(event: java.awt.event.ActionEvent) {
+                val index = entryList.selectedIndex
+                val bounds = entryList.getCellBounds(index, index) ?: return
+                showResultPopup(index, bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
+            }
+        })
+    }
+
+    private fun showPopupForMouseEvent(event: MouseEvent) {
+        if (!event.isPopupTrigger) return
+        val index = entryList.locationToIndex(event.point)
+        if (index < 0 || entryList.getCellBounds(index, index)?.contains(event.point) != true) return
+        showResultPopup(index, event.x, event.y)
+    }
+
+    private fun showResultPopup(index: Int, x: Int, y: Int) {
+        val popup = createResultPopup(index) ?: return
+        popup.show(entryList, x, y)
+    }
+
+    internal fun createResultPopup(index: Int): JPopupMenu? {
+        if (index !in 0 until entryList.model.size) return null
+        entryList.selectedIndex = index
+        val entry = entryList.model.getElementAt(index)
+        val popup = JPopupMenu()
+        popup.add(JMenuItem("Insert Function/Tag").apply {
+            isEnabled = canInsertInSelectedEditor()
+            addActionListener { insertEntry(entry) }
+        })
+        popup.add(JMenuItem("Copy Function/Tag Name").apply {
+            addActionListener { copyText(CFMLDocumentationSnippetFormatter.name(entry)) }
+        })
+        popup.add(JMenuItem("Copy Function/Tag with Attributes").apply {
+            addActionListener { copyText(CFMLDocumentationSnippetFormatter.withParameters(entry)) }
+        })
+        return popup
+    }
+
+    internal fun canInsertInSelectedEditor(): Boolean = selectedEditor()?.let { it.document.isWritable && !it.isViewer } == true
+
+    private fun selectedEditor(): Editor? = project
+        ?.takeUnless { it.isDisposed }
+        ?.let { FileEditorManager.getInstance(it).selectedTextEditor }
+
+    private fun insertEntry(entry: CFMLDocumentationEntry) {
+        val editor = selectedEditor() ?: return
+        insertSnippet(editor, CFMLDocumentationSnippetFormatter.withParameters(entry))
+    }
+
+    internal fun insertSnippet(editor: Editor, insertion: String): Boolean {
+        val currentProject = project?.takeUnless { it.isDisposed } ?: return false
+        if (!editor.document.isWritable || editor.isViewer) return false
+        val caret = editor.caretModel.primaryCaret
+        val start = if (caret.hasSelection()) caret.selectionStart else caret.offset
+        val end = if (caret.hasSelection()) caret.selectionEnd else caret.offset
+        WriteCommandAction.runWriteCommandAction(currentProject) {
+            editor.document.replaceString(start, end, insertion)
+            val newOffset = (start + insertion.length).coerceAtMost(editor.document.textLength)
+            editor.caretModel.primaryCaret.removeSelection()
+            editor.caretModel.primaryCaret.moveToOffset(newOffset)
+        }
+        return true
+    }
+
+    private fun copyText(text: String) {
+        CopyPasteManager.getInstance().setContents(StringSelection(text))
     }
 
     private fun applyFilters() {

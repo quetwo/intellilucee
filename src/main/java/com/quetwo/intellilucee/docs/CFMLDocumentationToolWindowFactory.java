@@ -10,7 +10,7 @@ public class CFMLDocumentationToolWindowFactory implements ToolWindowFactory {
 
     @Override
     public void createToolWindowContent(Project project, ToolWindow toolWindow) {
-        var content = ContentFactory.getInstance().createContent(new CFMLDocumentationPanel(), "", false);
+        var content = ContentFactory.getInstance().createContent(new CFMLDocumentationPanel(project), "", false);
         toolWindow.getContentManager().addContent(content);
     }
 }

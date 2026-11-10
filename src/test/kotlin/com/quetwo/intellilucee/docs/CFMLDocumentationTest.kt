@@ -136,6 +136,50 @@ class CFMLDocumentationTest {
         assertTrue(tagHtml.contains("queryExecute"))
     }
 
+    @Test
+    fun snippetFormatterBuildsFunctionArgumentsAndTagAttributes() {
+        val function = CFMLDocumentationRepository.loadEntries().first { it.name.equals("arrayAppend", ignoreCase = true) }
+        val tag = CFMLDocumentationRepository.loadEntries().first { it.name.equals("cfquery", ignoreCase = true) }
+
+        assertEquals("arrayAppend(array, value, merge)", CFMLDocumentationSnippetFormatter.withParameters(function))
+        assertEquals(
+            "<cfquery name=\"\" datasource=\"\" timezone=\"\" dbtype=\"\" username=\"\" password=\"\" " +
+                "maxrows=\"\" blockfactor=\"\" timeout=\"\" cachedafter=\"\" cachedwithin=\"\" debug=\"\" " +
+                "result=\"\" ormoptions=\"\" cacheID=\"\" cacheRegion=\"\" clientInfo=\"\" fetchClientInfo=\"\" " +
+                "lazy=\"\" psq=\"\" returntype=\"\" columnkey=\"\">\n\n</cfquery>",
+            CFMLDocumentationSnippetFormatter.withParameters(tag)
+        )
+    }
+
+    @Test
+    fun snippetFormatterHandlesOptionalParametersMissingMetadataAndDocumentedClosures() {
+        val optionalFunction = record(
+            "exampleFunction",
+            "function",
+            extra = """, "params":[{"name":"requiredValue","required":true},{"name":"optionalValue","required":false}]"""
+        )
+        val parameterless = record("cfabort", "tag", extra = ", \"syntax\":\"<cfabort [showerror=message]>\"")
+        val closingTag = record(
+            "cfwidget",
+            "tag",
+            extra = """, "syntax":"<cfwidget>body</cfwidget>", "params":[{"name":"id"}]"""
+        )
+        val emptyFunction = record("plainFunction", "function")
+
+        assertEquals("exampleFunction(requiredValue, optionalValue)", CFMLDocumentationSnippetFormatter.withParameters(optionalFunction))
+        assertEquals("<cfabort>", CFMLDocumentationSnippetFormatter.withParameters(parameterless))
+        assertEquals("<cfwidget id=\"\">\n\n</cfwidget>", CFMLDocumentationSnippetFormatter.withParameters(closingTag))
+        assertEquals("plainFunction()", CFMLDocumentationSnippetFormatter.withParameters(emptyFunction))
+        assertFalse(CFMLDocumentationSnippetFormatter.withParameters(parameterless).contains("["))
+    }
+
+    @Test
+    fun snippetFormatterCopiesNamesWithoutModifyingThem() {
+        val entry = record("ArrayAppend", "function")
+
+        assertEquals("ArrayAppend", CFMLDocumentationSnippetFormatter.name(entry))
+    }
+
     private fun record(
         name: String,
         type: String,
