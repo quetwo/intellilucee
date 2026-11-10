@@ -1,0 +1,21 @@
+{
+	"name": "entityNameArray",
+	"type": "function",
+	"syntax": "entityNameArray()",
+	"returns": "array",
+	"related": ["entityNameList"],
+	"description": "Returns an array of all loaded entities",
+	"params": [],
+	"engines": {
+		"lucee": {"minimum_version": "", "notes": "", "docs": "https://docs.lucee.org/reference/functions/entitynamearray.html"},
+		"boxlang": {"minimum_version":"1.0.0", "notes":"", "docs":"https://bxorm.ortusbooks.com/usage/builtins#entitynamearray"}
+	},
+	"examples": [{
+		"title":"Dump an array of entities currently loaded",
+		"description":"",
+		"code":"dump(entityNameArray());",
+		"result":"",
+		"runnable":true
+	}],
+	"links": []
+}

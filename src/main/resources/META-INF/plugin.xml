@@ -57,6 +57,12 @@
                 parentId="tools"
                 instance="com.quetwo.intellilucee.settings.CFMLFormatterProjectOverridesConfigurable"/>
 
+        <toolWindow
+                id="CFML Documentation"
+                anchor="right"
+                factoryClass="com.quetwo.intellilucee.docs.CFMLDocumentationToolWindowFactory"
+                icon="/icons/cfmlDocs.svg"/>
+
         <fileType
                 name="CFML"
                 language="CFML"
@@ -206,6 +212,15 @@
                 text="Format This Document"
                 description="Format this document, according to the formatter rules">
             <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.AddApplicationLifecycleStubs"/>
+        </action>
+
+        <action
+                id="CFML.ShowDocumentation"
+                class="com.quetwo.intellilucee.docs.ShowCFMLDocumentationAction"
+                text="CFML Documentation"
+                description="Browse CFML tags and functions"
+                icon="/icons/cfmlDocs.svg">
+            <add-to-group group-id="MainToolbarRight" anchor="last"/>
         </action>
 
     </actions>

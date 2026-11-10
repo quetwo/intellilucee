@@ -17,8 +17,7 @@ This repository implements the IntelliLucee IntelliJ Platform plugin that provid
 support, including .CFML, .CFM, .CFC and .CFS files.  Lucee engine is supported first, with support also provided
 for Adobe ColdFusion and BoxLang runtimes.
 
-This plugin is written in Kotlin and Java and will require the IntelliJ IDE to compile, along with Gradle. 
-
+This plugin is written in Kotlin and Java and will require the IntelliJ IDE to compile, along with Gradle.
 
 ## Build script
 
@@ -77,6 +76,7 @@ The project includes GitHub issue templates:
 - [clif Project](https://github.com/cfmleditor/clif) (formerly CFMLEditor-LSP)
 - [CFML-TreeSitter Project](https://github.com/cfmleditor/tree-sitter-cfml)
 - [Lucee Runtime Engine](https://lucee.org/)
+- [Foundeo CFDocs Project](https://github.com/foundeo/cfdocs)
 - [IntelliJ Platform SDK Plugin SDK][docs]
 - [IntelliJ Platform Explorer][jb:ipe]
 - [IntelliJ SDK Code Samples][gh:code-samples]
