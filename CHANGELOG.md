@@ -11,6 +11,7 @@
 ### Changed
 
  - Fixed icons on create CFML page menu to correctly represent the extension.
+ - Updated the support for exposing the MCP server within the project. Adds entry into the .junie/mcp/mcp.json file to expose the MCP server.
 
 ## 0.9.2 - 2026-11-07
 

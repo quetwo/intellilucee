@@ -38,6 +38,7 @@
         <applicationService serviceImplementation="com.quetwo.intellilucee.settings.CFMLGlobalSettings"/>
         <applicationService serviceImplementation="com.quetwo.intellilucee.settings.CFMLFormatterApplicationSettings"/>
         <moduleService serviceImplementation="com.quetwo.intellilucee.settings.CFMLFormatterModuleSettings"/>
+        <postStartupActivity implementation="com.quetwo.intellilucee.lsp.CFMLMcpProjectActivity"/>
 
         <applicationConfigurable
                 id="settings.intellilucee.global"
