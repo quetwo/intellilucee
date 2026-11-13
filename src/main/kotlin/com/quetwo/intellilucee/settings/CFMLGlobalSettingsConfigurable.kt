@@ -6,10 +6,17 @@ import com.intellij.ui.dsl.builder.bindItem
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
 import com.quetwo.intellilucee.lsp.CFMLLspReleaseProvider
+import com.quetwo.intellilucee.lsp.CFMLMcpProjectService
 
 class CFMLGlobalSettingsConfigurable : BoundSearchableConfigurable("Lucee CFML", "settings.intellilucee.global")
 {
     private val settings = CFMLGlobalSettings.getInstance()
+
+    override fun apply()
+    {
+        super.apply()
+        CFMLMcpProjectService.refreshOpenProjects()
+    }
 
     override fun createPanel(): DialogPanel
     {
@@ -39,7 +46,7 @@ class CFMLGlobalSettingsConfigurable : BoundSearchableConfigurable("Lucee CFML",
                 row {
                     checkBox("Expose project codebase via MCP server")
                         .bindSelected(settings.state::exposeProjectViaMcp)
-                        .comment("Expose the project codebase via a Model Context Protocol (MCP) server.")
+                        .comment("Register the downloaded clif MCP server for Junie in this project's .junie/mcp/mcp.json.")
                 }
             }
         }
