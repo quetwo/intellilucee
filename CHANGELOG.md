@@ -6,6 +6,8 @@
 
 ### Added
 
+ - Added documentation browser to the plugin.  Included copy of cfdocs documentation to allow user to browse and search docs.
+
 ### Changed
 
  - Fixed icons on create CFML page menu to correctly represent the extension.
