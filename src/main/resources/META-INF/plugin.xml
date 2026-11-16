@@ -210,11 +210,19 @@
         </action>
 
         <action
+                id="CFML.AddRestEndpoint"
+                class="com.quetwo.intellilucee.editor.CFMLAddRestEndpointAction"
+                text="Add REST Endpoint"
+                description="Add REST endpoint to the component">
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.AddApplicationLifecycleStubs"/>
+        </action>
+
+        <action
                 id="CFML.FormatDocument"
                 class="com.quetwo.intellilucee.actions.CFMLFormatDocument"
                 text="Format This Document"
                 description="Format this document, according to the formatter rules">
-            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.AddApplicationLifecycleStubs"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="after" relative-to-action="CFML.AddRestEndpoint"/>
         </action>
 
         <action
