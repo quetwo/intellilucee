@@ -136,7 +136,7 @@ class CFMLAddRestEndpointActionTest : BasePlatformTestCase() {
             val descriptor = dialog.getEndpointDescriptor()
             assertEquals("", descriptor.functionName)
             assertEquals("GET", descriptor.httpMethod)
-            assertEquals("", descriptor.restPath)
+            assertEquals("/", descriptor.restPath)
             assertEquals("application/json", descriptor.produces)
             assertEquals("", descriptor.consumes)
             assertTrue(descriptor.arguments.isEmpty())
