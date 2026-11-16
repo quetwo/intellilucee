@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+### Added
+- Added support for creating ORM and REST components via File Actions.
+- Added "Add REST Endpoint" action in the editor context menu to stub out REST endpoints.
+
+### Changed
+
 ## 0.9.4 - 2026-11-12
 
 ### Added

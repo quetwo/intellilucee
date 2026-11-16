@@ -21,6 +21,10 @@ public final class CFMLFileCreateActions extends CreateFileFromTemplateAction im
     @NotNull String PAGE_TEMPLATE_TAG_NAME = "CFML Page (tag)";
     private static final @NonNls
     @NotNull String PAGE_TEMPLATE_SCRIPT_NAME = "CFML Page (script)";
+    private static final @NonNls
+    @NotNull String ORM_CLASS_TEMPLATE_SCRIPT_NAME = "CFML ORM Component";
+    private static final @NonNls
+    @NotNull String REST_CLASS_TEMPLATE_SCRIPT_NAME = "CFML REST Component";
 
     public CFMLFileCreateActions()
     {
@@ -34,7 +38,9 @@ public final class CFMLFileCreateActions extends CreateFileFromTemplateAction im
                 .addKind( "CFML Page (tag)", CFMLIcon.FILE_CFM, PAGE_TEMPLATE_TAG_NAME )
                 .addKind( "CFML Page (script)", CFMLIcon.FILE_CFS, PAGE_TEMPLATE_SCRIPT_NAME )
                 .addKind( "CFML Class (tag)", CFMLIcon.FILE_CFC, CLASS_TEMPLATE_TAG_NAME )
-                .addKind( "CFML Class (script)", CFMLIcon.FILE_CFC, CLASS_TEMPLATE_SCRIPT_NAME );
+                .addKind( "CFML Class (script)", CFMLIcon.FILE_CFC, CLASS_TEMPLATE_SCRIPT_NAME )
+                .addKind( "CFML ORM Component", CFMLIcon.FILE_CFC, ORM_CLASS_TEMPLATE_SCRIPT_NAME )
+                .addKind( "CFML REST Component", CFMLIcon.FILE_CFC, REST_CLASS_TEMPLATE_SCRIPT_NAME );
 
     }
 
