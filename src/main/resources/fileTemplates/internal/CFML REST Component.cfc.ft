@@ -1,0 +1,6 @@
+component rest="true" restpath="/#[[$RestPath$]]#"
+{
+
+    #[[$END$]]#
+
+}

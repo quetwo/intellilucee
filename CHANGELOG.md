@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### Added
+- Added support for creating ORM and REST components via File Actions.
+
+### Changed
+
 ## 0.9.4 - 2026-11-12
 
 ### Added

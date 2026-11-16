@@ -1,0 +1,7 @@
+component persistent="true" table="#[[$Table$]]#"
+{
+
+    property name="#[[$IndexID$]]#" fieldtype="id" generator="native" column="#[[$IndexColumn$]]#" setter="false";
+    #[[$END$]]#
+
+}

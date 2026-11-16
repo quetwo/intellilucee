@@ -178,6 +178,8 @@
         <internalFileTemplate name="CFML Page (script)"/>
         <internalFileTemplate name="CFML Class (tag)"/>
         <internalFileTemplate name="CFML Class (script)"/>
+        <internalFileTemplate name="CFML ORM Component"/>
+        <internalFileTemplate name="CFML REST Component"/>
 
     </extensions>
 
